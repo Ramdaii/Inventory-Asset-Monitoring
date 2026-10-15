@@ -1,0 +1,10 @@
+{
+  "name": "GA-Ops Asset & Facility Manager",
+  "description": "Sistem pemantau jadwal perawatan fasilitas dan inventaris kantor real-time untuk tim General Affairs, dilengkapi pemindaian barcode/QR, pelaporan otomatis, notifikasi email, dokumen terenkripsi E2EE, dan backup berkala.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
