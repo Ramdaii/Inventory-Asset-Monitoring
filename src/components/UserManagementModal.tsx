@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Branch, PermissionKey, RoleDefinition, UserProfile } from '../types';
 import {
   Users,
@@ -21,6 +21,7 @@ import {
   Lock,
   Pencil,
   Phone,
+  ArrowLeft,
 } from 'lucide-react';
 
 interface UserManagementModalProps {
@@ -30,6 +31,8 @@ interface UserManagementModalProps {
   roles: RoleDefinition[];
   branches: Branch[];
   currentUser: UserProfile;
+  initialTab?: 'users' | 'roles' | 'branches';
+  initialBranchIdToEdit?: string | null;
   onSaveUsers: (users: UserProfile[]) => void;
   onSaveRoles: (roles: RoleDefinition[]) => void;
   onSaveBranches: (branches: Branch[]) => void;
@@ -57,11 +60,13 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   roles,
   branches,
   currentUser,
+  initialTab = 'users',
+  initialBranchIdToEdit,
   onSaveUsers,
   onSaveRoles,
   onSaveBranches,
 }) => {
-  const [activeTab, setActiveTab] = useState<'users' | 'roles' | 'branches'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'roles' | 'branches'>(initialTab);
   const [visiblePins, setVisiblePins] = useState<Record<string, boolean>>({});
 
   // New User Form State
@@ -93,6 +98,20 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      if (initialTab) {
+        setActiveTab(initialTab);
+      }
+      if (initialBranchIdToEdit) {
+        const found = branches.find((b) => b.id === initialBranchIdToEdit);
+        if (found) {
+          setEditingBranch({ ...found });
+        }
+      }
+    }
+  }, [isOpen, initialTab, initialBranchIdToEdit, branches]);
 
   if (!isOpen) return null;
 
@@ -233,17 +252,28 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full overflow-hidden border border-slate-200 flex flex-col max-h-[92vh]">
-        {/* Header */}
+        {/* Header with Back button */}
         <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-slate-800" />
-            <div>
-              <h3 className="font-semibold text-slate-900 text-base">
-                Manajemen Pengguna, Batasan Role & Percabangan
-              </h3>
-              <p className="text-xs text-slate-500">
-                Kelola akun GA Manager/Staff, nomor PIN akses masuk, dan batasan hak fitur sistem
-              </p>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onClose}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-950 bg-white hover:bg-slate-200 border border-slate-200 rounded-lg transition-colors shadow-2xs"
+              title="Kembali ke Halaman Sebelumnya"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Kembali</span>
+            </button>
+
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-slate-800" />
+              <div>
+                <h3 className="font-semibold text-slate-900 text-base leading-tight">
+                  Manajemen Pengguna, Batasan Role & Percabangan
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Kelola akun GA Manager/Staff, nomor PIN akses masuk, dan batasan hak fitur sistem
+                </p>
+              </div>
             </div>
           </div>
           <button
@@ -255,10 +285,10 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
         </div>
 
         {/* Tab Controls */}
-        <div className="flex items-center gap-1 px-6 pt-2 border-b border-slate-200 bg-white shrink-0 text-xs">
+        <div className="flex items-center gap-1 px-3 sm:px-6 pt-2 border-b border-slate-200 bg-white shrink-0 text-xs overflow-x-auto">
           <button
             onClick={() => setActiveTab('users')}
-            className={`px-4 py-2.5 font-medium border-b-2 transition-colors ${
+            className={`px-3 sm:px-4 py-2.5 font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
               activeTab === 'users'
                 ? 'border-slate-900 text-slate-900'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -268,7 +298,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('roles')}
-            className={`px-4 py-2.5 font-medium border-b-2 transition-colors ${
+            className={`px-3 sm:px-4 py-2.5 font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
               activeTab === 'roles'
                 ? 'border-slate-900 text-slate-900'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -278,7 +308,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('branches')}
-            className={`px-4 py-2.5 font-medium border-b-2 transition-colors ${
+            className={`px-3 sm:px-4 py-2.5 font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
               activeTab === 'branches'
                 ? 'border-slate-900 text-slate-900'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -953,13 +983,22 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
 
         {/* Footer */}
         <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 shrink-0">
-          <span>Otorisasi: {currentUser.name} ({currentUser.roleLabel})</span>
           <button
             onClick={onClose}
-            className="px-4 py-1.5 text-xs font-medium text-slate-700 hover:text-slate-900 rounded-md hover:bg-slate-200/50"
+            className="flex items-center gap-1.5 px-3 py-1.5 font-semibold text-slate-700 hover:text-slate-900 rounded-md hover:bg-slate-200/50 transition-colors"
           >
-            Tutup
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Kembali ke Halaman Sebelumnya</span>
           </button>
+          <div className="flex items-center gap-3">
+            <span>Otorisasi: {currentUser.name} ({currentUser.roleLabel})</span>
+            <button
+              onClick={onClose}
+              className="px-4 py-1.5 text-xs font-semibold bg-slate-900 text-white rounded-lg hover:bg-slate-800"
+            >
+              Tutup
+            </button>
+          </div>
         </div>
       </div>
     </div>

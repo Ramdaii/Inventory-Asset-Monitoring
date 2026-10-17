@@ -4,24 +4,28 @@
  */
 
 import React, { useState } from 'react';
-import { Asset, AssetCategory, Branch, MaintenanceFrequency } from '../types';
-import { X, Plus, Building, Upload, Image as ImageIcon, Trash2 } from 'lucide-react';
+import { Asset, AssetCategory, Branch, CategoryDefinition, MaintenanceFrequency } from '../types';
+import { X, Plus, Building, Upload, Image as ImageIcon, Trash2, ArrowLeft } from 'lucide-react';
 
 interface AssetFormModalProps {
   isOpen: boolean;
   branches: Branch[];
+  categories?: CategoryDefinition[];
   selectedBranchId?: string;
   onClose: () => void;
   onSave: (asset: Asset) => void;
+  onOpenCategoryManagement?: () => void;
   existingCount: number;
 }
 
 export const AssetFormModal: React.FC<AssetFormModalProps> = ({
   isOpen,
   branches,
+  categories,
   selectedBranchId,
   onClose,
   onSave,
+  onOpenCategoryManagement,
   existingCount,
 }) => {
   const nextNum = String(existingCount + 1).padStart(3, '0');
@@ -119,17 +123,29 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full overflow-hidden border border-slate-200 flex flex-col max-h-[90vh]">
-        {/* Header */}
+        {/* Header with Back button */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
-          <div className="flex items-center gap-2">
-            <Building className="w-5 h-5 text-slate-800" />
-            <div>
-              <h3 className="font-semibold text-slate-900 text-base">
-                Registrasi Fasilitas & Aset Baru
-              </h3>
-              <p className="text-xs text-slate-500">
-                Pencatatan inventaris cabang, jadwal servis preventif, dan upload barcode kustom Anda
-              </p>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-950 bg-white hover:bg-slate-200 border border-slate-200 rounded-lg transition-colors shadow-2xs"
+              title="Kembali ke Halaman Sebelumnya"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Kembali</span>
+            </button>
+
+            <div className="flex items-center gap-2">
+              <Building className="w-5 h-5 text-slate-800" />
+              <div>
+                <h3 className="font-semibold text-slate-900 text-base leading-tight">
+                  Registrasi Fasilitas & Aset Baru
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Pencatatan inventaris cabang, jadwal servis preventif, dan upload barcode kustom Anda
+                </p>
+              </div>
             </div>
           </div>
           <button
@@ -186,20 +202,37 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({
             </div>
 
             <div>
-              <label className="font-semibold text-slate-700 block mb-1">Kategori Fasilitas:</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="font-semibold text-slate-700">Kategori Fasilitas:</label>
+                {onOpenCategoryManagement && (
+                  <button
+                    type="button"
+                    onClick={onOpenCategoryManagement}
+                    className="text-[11px] font-semibold text-slate-700 hover:text-slate-950 underline"
+                  >
+                    + Kelola Kategori
+                  </button>
+                )}
+              </div>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value as AssetCategory)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900"
               >
-                <option value="hvac">HVAC & Tata Udara (AC / Chiller)</option>
-                <option value="power_genset">Kelistrikan & Genset Cadangan</option>
-                <option value="elevator">Lift & Eskalator Gedung</option>
-                <option value="fire_safety">Keselamatan Kebakaran & APAR</option>
-                <option value="it_network">IT Network & Server Infrastructure</option>
-                <option value="office_facility">Fasilitas Pantry & Kantor</option>
-                <option value="vehicle">Kendaraan Operasional GA</option>
-                <option value="plumbing">Plumbing & Pompa Booster Air</option>
+                {(categories && categories.length > 0 ? categories : [
+                  { id: 'hvac', name: 'HVAC & Tata Udara (AC / Chiller)' },
+                  { id: 'power_genset', name: 'Kelistrikan & Genset Cadangan' },
+                  { id: 'elevator', name: 'Lift & Eskalator Gedung' },
+                  { id: 'fire_safety', name: 'Keselamatan Kebakaran & APAR' },
+                  { id: 'it_network', name: 'IT Network & Server Infrastructure' },
+                  { id: 'office_facility', name: 'Fasilitas Pantry & Kantor' },
+                  { id: 'vehicle', name: 'Kendaraan Operasional GA' },
+                  { id: 'plumbing', name: 'Plumbing & Pompa Booster Air' },
+                ]).map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -351,20 +384,31 @@ export const AssetFormModal: React.FC<AssetFormModalProps> = ({
             </div>
           </div>
 
-          <div className="pt-4 flex justify-end gap-2 border-t border-slate-100">
+          <div className="pt-4 flex items-center justify-between border-t border-slate-100">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-slate-600 hover:text-slate-900"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-900 rounded-md hover:bg-slate-200/50 transition-colors"
             >
-              Batal
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Kembali ke Halaman Sebelumnya</span>
             </button>
-            <button
-              type="submit"
-              className="px-5 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 font-semibold shadow-2xs"
-            >
-              Simpan & Cetak Barcode
-            </button>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-slate-600 hover:text-slate-900"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 font-semibold shadow-2xs"
+              >
+                Simpan & Cetak Barcode
+              </button>
+            </div>
           </div>
         </form>
       </div>

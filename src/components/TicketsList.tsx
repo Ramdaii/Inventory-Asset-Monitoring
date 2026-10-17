@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { Asset, MaintenanceTicket, UserProfile } from '../types';
-import { Wrench, CheckCircle, Clock, AlertTriangle, Plus, Search } from 'lucide-react';
+import { Wrench, CheckCircle, Clock, AlertTriangle, Plus, Search, ArrowLeft } from 'lucide-react';
 
 interface TicketsListProps {
   tickets: MaintenanceTicket[];
@@ -13,6 +13,7 @@ interface TicketsListProps {
   currentUser: UserProfile;
   onOpenCreateTicket: () => void;
   onUpdateTicket: (updated: MaintenanceTicket) => void;
+  onBackToDashboard?: () => void;
 }
 
 export const TicketsList: React.FC<TicketsListProps> = ({
@@ -21,6 +22,7 @@ export const TicketsList: React.FC<TicketsListProps> = ({
   currentUser,
   onOpenCreateTicket,
   onUpdateTicket,
+  onBackToDashboard,
 }) => {
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [selectedTicket, setSelectedTicket] = useState<MaintenanceTicket | null>(null);
@@ -46,66 +48,78 @@ export const TicketsList: React.FC<TicketsListProps> = ({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3.5 sm:space-y-4">
       {/* Top Bar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h3 className="font-bold text-slate-900 text-sm">
-            Manajemen Tiket Keluhan & Perbaikan Fasilitas
-          </h3>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Daftar laporan kerusakan fasilitas yang diajukan karyawan kantor untuk ditindaklanjuti GA
-          </p>
+      <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          {onBackToDashboard && (
+            <button
+              onClick={onBackToDashboard}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-950 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg transition-colors shadow-2xs shrink-0"
+              title="Kembali ke Ringkasan Dashboard"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Kembali</span>
+            </button>
+          )}
+          <div>
+            <h3 className="font-bold text-slate-900 text-sm">
+              Tiket Keluhan & Perbaikan Fasilitas
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Laporan kerusakan fasilitas dari karyawan kantor
+            </p>
+          </div>
         </div>
 
         <button
           onClick={onOpenCreateTicket}
-          className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors shadow-2xs whitespace-nowrap"
+          className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-semibold bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors shadow-2xs whitespace-nowrap"
         >
           <Plus className="w-3.5 h-3.5" />
-          Ajukan Tiket Perbaikan
+          <span>Ajukan Tiket Perbaikan</span>
         </button>
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg w-fit text-xs">
+      <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg w-full sm:w-auto text-xs overflow-x-auto">
         <button
           onClick={() => setFilterStatus('all')}
-          className={`px-3 py-1.5 font-medium rounded-md transition-colors ${
-            filterStatus === 'all' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+          className={`px-3 py-1.5 font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
+            filterStatus === 'all' ? 'bg-white text-slate-900 shadow-2xs font-semibold' : 'text-slate-600 hover:text-slate-900'
           }`}
         >
-          Semua Tiket ({tickets.length})
+          Semua ({tickets.length})
         </button>
         <button
           onClick={() => setFilterStatus('open')}
-          className={`px-3 py-1.5 font-medium rounded-md transition-colors ${
+          className={`px-3 py-1.5 font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
             filterStatus === 'open'
-              ? 'bg-white text-slate-900 shadow-2xs'
+              ? 'bg-white text-slate-900 shadow-2xs font-semibold'
               : 'text-slate-600 hover:text-slate-900'
           }`}
         >
-          Terbuka / Menunggu ({tickets.filter((t) => t.status === 'open').length})
+          Terbuka ({tickets.filter((t) => t.status === 'open').length})
         </button>
         <button
           onClick={() => setFilterStatus('assigned')}
-          className={`px-3 py-1.5 font-medium rounded-md transition-colors ${
+          className={`px-3 py-1.5 font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
             filterStatus === 'assigned'
-              ? 'bg-white text-slate-900 shadow-2xs'
+              ? 'bg-white text-slate-900 shadow-2xs font-semibold'
               : 'text-slate-600 hover:text-slate-900'
           }`}
         >
-          Ditugaskan ke Vendor ({tickets.filter((t) => t.status === 'assigned').length})
+          Ditugaskan ({tickets.filter((t) => t.status === 'assigned').length})
         </button>
         <button
           onClick={() => setFilterStatus('resolved')}
-          className={`px-3 py-1.5 font-medium rounded-md transition-colors ${
+          className={`px-3 py-1.5 font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
             filterStatus === 'resolved'
-              ? 'bg-white text-slate-900 shadow-2xs'
+              ? 'bg-white text-slate-900 shadow-2xs font-semibold'
               : 'text-slate-600 hover:text-slate-900'
           }`}
         >
-          Selesai Diperbaiki ({tickets.filter((t) => t.status === 'resolved').length})
+          Selesai ({tickets.filter((t) => t.status === 'resolved').length})
         </button>
       </div>
 

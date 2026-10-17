@@ -3,7 +3,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Asset, Branch, MaintenanceTicket, RoleDefinition, UserProfile } from '../types';
+import { Asset, Branch, CategoryDefinition, MaintenanceTicket, RoleDefinition, UserProfile } from '../types';
+
+export const INITIAL_CATEGORIES: CategoryDefinition[] = [
+  { id: 'hvac', code: 'AC/HVAC', name: 'HVAC & Tata Udara (AC / Chiller)', key: 'hvac', label: 'HVAC & Tata Udara (AC / Chiller)', description: 'Pendingin ruangan, AC Split, Cassette, Central Chiller', color: '#0284c7' },
+  { id: 'power_genset', code: 'GENSET', name: 'Kelistrikan & Genset Cadangan', key: 'power_genset', label: 'Kelistrikan & Genset Cadangan', description: 'Genset diesel, ATS panel, gardu trafo listrik', color: '#d97706' },
+  { id: 'elevator', code: 'ELEVATOR', name: 'Lift & Eskalator Gedung', key: 'elevator', label: 'Lift & Eskalator Gedung', description: 'Lift penumpang, lift barang, eskalator gedung', color: '#7c3aed' },
+  { id: 'fire_safety', code: 'APAR/HYD', name: 'Keselamatan Kebakaran & APAR', key: 'fire_safety', label: 'Keselamatan Kebakaran & APAR', description: 'Tabung APAR, hydrant, sprinkler, detector alarm', color: '#dc2626' },
+  { id: 'it_network', code: 'IT-NET', name: 'IT Network & Server Infrastructure', key: 'it_network', label: 'IT Network & Server Infrastructure', description: 'Server rack, UPS, core switch, CCTV console', color: '#059669' },
+  { id: 'office_facility', code: 'FASILITAS', name: 'Fasilitas Pantry & Kantor', key: 'office_facility', label: 'Fasilitas Pantry & Kantor', description: 'Dispenser air minum, meja kerja, perlengkapan kantor', color: '#475569' },
+  { id: 'vehicle', code: 'KENDARAAN', name: 'Kendaraan Operasional GA', key: 'vehicle', label: 'Kendaraan Operasional GA', description: 'Mobil dinas kantor, armada logistik cabang', color: '#ea580c' },
+  { id: 'plumbing', code: 'PLUMBING', name: 'Plumbing & Pompa Booster Air', key: 'plumbing', label: 'Plumbing & Pompa Booster Air', description: 'Pompa booster, pipa air gedung, penampung air', color: '#0891b2' },
+];
 
 export const INITIAL_BRANCHES: Branch[] = [
   {
@@ -49,7 +60,7 @@ export const INITIAL_ROLES: RoleDefinition[] = [
     id: 'full_admin',
     name: 'full_admin',
     label: 'Full Administrator (Web Developer)',
-    description: 'Akses penuh tanpa batas: manajemen pengguna, PIN akses, batasan hak akses role, percabangan, database, dan seluruh kontrol GA.',
+    description: 'Akses penuh tanpa batas: manajemen pengguna, PIN akses, batasan hak akses role, percabangan, master kategori, database, dan seluruh kontrol GA.',
     permissions: [
       'view_assets',
       'create_assets',
@@ -59,6 +70,7 @@ export const INITIAL_ROLES: RoleDefinition[] = [
       'upload_documents',
       'manage_barcodes',
       'manage_branches',
+      'manage_categories',
       'email_notifications',
       'export_reports',
       'manage_backups',
@@ -78,6 +90,7 @@ export const INITIAL_ROLES: RoleDefinition[] = [
       'log_maintenance',
       'upload_documents',
       'manage_barcodes',
+      'manage_categories',
       'email_notifications',
       'export_reports',
       'manage_backups',

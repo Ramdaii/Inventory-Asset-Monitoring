@@ -19,13 +19,13 @@ export const BranchSelector: React.FC<BranchSelectorProps> = ({
   onSelectBranch,
 }) => {
   return (
-    <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-lg text-xs">
-      <div className="flex items-center gap-1.5 px-2 text-slate-500 font-medium">
+    <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg text-xs max-w-full overflow-x-auto">
+      <div className="flex items-center gap-1.5 px-2 text-slate-500 font-medium shrink-0">
         <Building2 className="w-3.5 h-3.5" />
         <span className="hidden sm:inline">Cabang:</span>
       </div>
 
-      <div className="flex items-center gap-1 flex-wrap">
+      <div className="flex items-center gap-1 shrink-0 flex-nowrap sm:flex-wrap">
         <button
           onClick={() => onSelectBranch('all')}
           className={`px-2.5 py-1 font-medium rounded-md transition-colors ${

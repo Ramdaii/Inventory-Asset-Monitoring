@@ -5,7 +5,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Asset, Branch } from '../types';
-import { Camera, X, ScanLine, AlertCircle, Upload, CheckCircle2, Search, Image as ImageIcon } from 'lucide-react';
+import { Camera, X, ScanLine, AlertCircle, Upload, CheckCircle2, Search, Image as ImageIcon, ArrowLeft } from 'lucide-react';
 
 interface ScannerModalProps {
   isOpen: boolean;
@@ -120,11 +120,22 @@ export const ScannerModal: React.FC<ScannerModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200">
-        {/* Header */}
+        {/* Header with Back button */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
-          <div className="flex items-center gap-2">
-            <ScanLine className="w-5 h-5 text-slate-800" />
-            <h3 className="font-semibold text-slate-900 text-base">Pemindai Barcode / QR Aset</h3>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onClose}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-950 bg-white hover:bg-slate-200 border border-slate-200 rounded-lg transition-colors shadow-2xs"
+              title="Kembali ke Halaman Sebelumnya"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Kembali</span>
+            </button>
+
+            <div className="flex items-center gap-2">
+              <ScanLine className="w-5 h-5 text-slate-800" />
+              <h3 className="font-semibold text-slate-900 text-base leading-tight">Pemindai Barcode / QR Aset</h3>
+            </div>
           </div>
           <button
             onClick={onClose}
@@ -232,10 +243,16 @@ export const ScannerModal: React.FC<ScannerModalProps> = ({
 
         {/* Footer */}
         <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-          <span>Kamera HD Auto-Detect Barcode & QR</span>
           <button
             onClick={onClose}
-            className="text-xs font-medium text-slate-700 hover:text-slate-950"
+            className="flex items-center gap-1.5 px-3 py-1 font-semibold text-slate-700 hover:text-slate-900 rounded-md hover:bg-slate-200/50 transition-colors"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Kembali ke Halaman Sebelumnya</span>
+          </button>
+          <button
+            onClick={onClose}
+            className="px-3 py-1 text-xs font-semibold bg-slate-900 text-white rounded-lg hover:bg-slate-800"
           >
             Tutup
           </button>

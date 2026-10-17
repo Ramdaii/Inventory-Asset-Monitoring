@@ -24,6 +24,7 @@ import {
   Key,
   CheckCircle2,
   AlertTriangle,
+  ArrowLeft,
 } from 'lucide-react';
 
 interface BackupModalProps {
@@ -131,17 +132,28 @@ export const BackupModal: React.FC<BackupModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full overflow-hidden border border-slate-200 flex flex-col max-h-[90vh]">
-        {/* Header */}
+        {/* Header with Back button */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50 shrink-0">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-emerald-700" />
-            <div>
-              <h3 className="font-semibold text-slate-900 text-base">
-                Cloud Vault & Cadangan Data Otomatis (E2EE)
-              </h3>
-              <p className="text-xs text-slate-500">
-                Penyimpanan aman dokumen riwayat perawatan dengan Enkripsi AES-GCM 256-bit
-              </p>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onClose}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-950 bg-white hover:bg-slate-200 border border-slate-200 rounded-lg transition-colors shadow-2xs"
+              title="Kembali ke Halaman Sebelumnya"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Kembali</span>
+            </button>
+
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-emerald-700" />
+              <div>
+                <h3 className="font-semibold text-slate-900 text-base leading-tight">
+                  Cloud Vault & Cadangan Data Otomatis (E2EE)
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Penyimpanan aman dokumen riwayat perawatan dengan Enkripsi AES-GCM 256-bit
+                </p>
+              </div>
             </div>
           </div>
           <button
@@ -281,10 +293,17 @@ export const BackupModal: React.FC<BackupModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-end text-xs text-slate-500 shrink-0">
+        <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 shrink-0">
           <button
             onClick={onClose}
-            className="px-4 py-1.5 text-xs font-medium text-slate-700 hover:text-slate-900 rounded-md hover:bg-slate-200/50"
+            className="flex items-center gap-1.5 px-3 py-1.5 font-semibold text-slate-700 hover:text-slate-900 rounded-md hover:bg-slate-200/50 transition-colors"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Kembali ke Halaman Sebelumnya</span>
+          </button>
+          <button
+            onClick={onClose}
+            className="px-4 py-1.5 text-xs font-semibold bg-slate-900 text-white rounded-lg hover:bg-slate-800"
           >
             Tutup
           </button>

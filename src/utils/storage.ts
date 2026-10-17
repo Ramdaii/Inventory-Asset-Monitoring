@@ -6,6 +6,7 @@
 import {
   Asset,
   Branch,
+  CategoryDefinition,
   EmailNotificationLog,
   EmailNotificationSettings,
   MaintenanceTicket,
@@ -19,8 +20,8 @@ import {
   INITIAL_ROLES,
   INITIAL_TICKETS,
   INITIAL_USERS,
-} from '../data/initialAssets';
 import { computeChecksum, encryptData, decryptData } from './crypto';
+import { formatJakartaFullDateTime, getJakartaDateString } from './dateTime';
 
 const STORAGE_KEY_ASSETS = 'ga_ops_assets_v3';
 const STORAGE_KEY_TICKETS = 'ga_ops_tickets_v3';
@@ -28,9 +29,96 @@ const STORAGE_KEY_BRANCHES = 'ga_ops_branches_v3';
 const STORAGE_KEY_ROLES = 'ga_ops_roles_v3';
 const STORAGE_KEY_USERS = 'ga_ops_users_v3';
 const STORAGE_KEY_AUTH_USER = 'ga_ops_auth_user_v3';
+const STORAGE_KEY_CATEGORIES = 'ga_ops_categories_v3';
 const STORAGE_KEY_EMAIL_SETTINGS = 'ga_ops_email_settings_v3';
 const STORAGE_KEY_EMAIL_LOGS = 'ga_ops_email_logs_v3';
 const STORAGE_KEY_BACKUPS = 'ga_ops_backups_v3';
+
+export const INITIAL_CATEGORIES: CategoryDefinition[] = [
+  {
+    id: 'hvac',
+    code: 'AC/HVAC',
+    name: 'HVAC / Pendingin Ruangan (AC)',
+    description: 'Sistem pendingin, AC Split, Cassette, Chiller, dan Ducting ventilasi gedung kantor.',
+    color: '#0284c7',
+  },
+  {
+    id: 'power_genset',
+    code: 'GENSET',
+    name: 'Kelistrikan & Generator Genset',
+    description: 'Panel distribusi daya utama, transformator, UPS server, dan mesin genset darurat.',
+    color: '#d97706',
+  },
+  {
+    id: 'fire_safety',
+    code: 'APAR/HYD',
+    name: 'Proteksi Kebakaran (APAR & Hydrant)',
+    description: 'Tabung APAR powder/CO2, instalasi sprinkler, alarm asap, dan pompa hydrant gedung.',
+    color: '#dc2626',
+  },
+  {
+    id: 'elevator',
+    code: 'ELEVATOR',
+    name: 'Lift & Elevator Penumpang',
+    description: 'Elevator gedung, escalator, sling kabel baja, sensor pintu, dan sertifikasi Depnaker.',
+    color: '#7c3aed',
+  },
+  {
+    id: 'it_network',
+    code: 'IT-NET',
+    name: 'Infrastruktur IT & Server Room',
+    description: 'Server rack, switch core, router fiber optic, kabel LAN, dan pendingin PAC data center.',
+    color: '#059669',
+  },
+  {
+    id: 'office_facility',
+    code: 'FASILITAS',
+    name: 'Fasilitas & Interior Gedung',
+    description: 'Pintu otomatis, access card reader, furnitur ruang rapat, partisi, dan sanitasi kantor.',
+    color: '#475569',
+  },
+  {
+    id: 'vehicle',
+    code: 'KENDARAAN',
+    name: 'Armada Kendaraan Operasional',
+    description: 'Mobil jemputan direksi, van logistik dokumen kantor, motor kurir, dan uji KIR berkala.',
+    color: '#ea580c',
+  },
+  {
+    id: 'plumbing',
+    code: 'PLUMBING',
+    name: 'Sistem Plumbing & Pompa Air',
+    description: 'Pompa booster, roof tank penampungan air, pengolahan air bersih (WTP), dan drainase.',
+    color: '#0891b2',
+  },
+];
+
+export function getStoredCategories(): CategoryDefinition[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_CATEGORIES);
+    if (!raw) {
+      saveStoredCategories(INITIAL_CATEGORIES);
+      return INITIAL_CATEGORIES;
+    }
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      saveStoredCategories(INITIAL_CATEGORIES);
+      return INITIAL_CATEGORIES;
+    }
+    return parsed;
+  } catch (e) {
+    console.error('Error loading categories:', e);
+    return INITIAL_CATEGORIES;
+  }
+}
+
+export function saveStoredCategories(categories: CategoryDefinition[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEY_CATEGORIES, JSON.stringify(categories));
+  } catch (e) {
+    console.error('Error saving categories:', e);
+  }
+}
 
 export const DEFAULT_EMAIL_SETTINGS: EmailNotificationSettings = {
   enabled: true,
@@ -279,6 +367,8 @@ export async function createEncryptedBackupPackage(passphrase: string = 'GA_ENTE
 
   const payload = JSON.stringify({
     version: '3.0.0',
+    timezone: 'Asia/Jakarta (WIB - UTC+7)',
+    exportDateWib: formatJakartaFullDateTime(),
     exportDate: new Date().toISOString(),
     system: 'GA-Ops Facility & Inventory Commander (Multi-Branch & RBAC)',
     data: {
@@ -295,7 +385,8 @@ export async function createEncryptedBackupPackage(passphrase: string = 'GA_ENTE
   const checksum = await computeChecksum(payload);
   const encryptedString = await encryptData(payload, passphrase);
   const sizeKb = Math.round((encryptedString.length / 1024) * 10) / 10;
-  const fileName = `ga_ops_backup_${new Date().toISOString().slice(0, 10)}.enc.json`;
+  const dateStr = getJakartaDateString().replace(/-/g, '');
+  const fileName = `ga_ops_backup_${dateStr}_WIB.enc.json`;
 
   return {
     blobData: encryptedString,

@@ -5,7 +5,8 @@
 
 import React, { useState } from 'react';
 import { Asset, MaintenanceTicket, UserProfile } from '../types';
-import { LifeBuoy, X, Send, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { getJakartaDateString, getJakartaTimeString } from '../utils/dateTime';
+import { LifeBuoy, X, Send, AlertTriangle, CheckCircle2, ArrowLeft } from 'lucide-react';
 
 interface TicketRequestModalProps {
   isOpen: boolean;
@@ -44,7 +45,7 @@ export const TicketRequestModal: React.FC<TicketRequestModalProps> = ({
       location: chosenAsset.location,
       reportedBy: currentUser.name,
       reportedEmail: currentUser.email,
-      reportedDate: `${new Date().toISOString().slice(0, 10)} ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`,
+      reportedDate: `${getJakartaDateString()} ${getJakartaTimeString()}`,
       priority,
       issueDescription: description.trim(),
       status: 'open',
@@ -63,12 +64,24 @@ export const TicketRequestModal: React.FC<TicketRequestModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200">
+        {/* Header with Back button */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
-          <div className="flex items-center gap-2">
-            <LifeBuoy className="w-5 h-5 text-slate-800" />
-            <h3 className="font-semibold text-slate-900 text-base">
-              Lapor Kerusakan / Permintaan Servis GA
-            </h3>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onClose}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-950 bg-white hover:bg-slate-200 border border-slate-200 rounded-lg transition-colors shadow-2xs"
+              title="Kembali ke Halaman Sebelumnya"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Kembali</span>
+            </button>
+
+            <div className="flex items-center gap-2">
+              <LifeBuoy className="w-5 h-5 text-slate-800" />
+              <h3 className="font-semibold text-slate-900 text-base leading-tight">
+                Lapor Kerusakan / Permintaan Servis GA
+              </h3>
+            </div>
           </div>
           <button
             onClick={onClose}

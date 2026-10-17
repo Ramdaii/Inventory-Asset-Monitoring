@@ -26,11 +26,17 @@ import {
   MapPin,
   Tag,
   Pencil,
+  FolderTree,
+  FileSpreadsheet,
 } from 'lucide-react';
+import { CategoryDefinition } from '../types';
+import { dispatchDirectEmail } from '../utils/notificationEngine';
+import { useRealtimeJakarta } from '../utils/time';
 
 interface DashboardOverviewProps {
   assets: Asset[];
   branches: Branch[];
+  categories?: CategoryDefinition[];
   tickets: MaintenanceTicket[];
   currentUser: UserProfile;
   selectedBranchId: string;
@@ -42,11 +48,15 @@ interface DashboardOverviewProps {
   onOpenReports: () => void;
   onOpenTicketModal: () => void;
   onOpenUserManagement: () => void;
+  onOpenBranchManagement?: (branchId?: string) => void;
+  onOpenCategoryManagement?: () => void;
+  onExportExcel?: () => void;
 }
 
 export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   assets,
   branches,
+  categories = [],
   tickets,
   currentUser,
   selectedBranchId,
@@ -58,9 +68,13 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   onOpenReports,
   onOpenTicketModal,
   onOpenUserManagement,
+  onOpenBranchManagement,
+  onOpenCategoryManagement,
+  onExportExcel,
 }) => {
   // Categorization view mode: 'branch' vs 'type'
   const [categorizationMode, setCategorizationMode] = useState<'branch' | 'type'>('branch');
+  const realtimeJakarta = useRealtimeJakarta();
 
   // Filter assets by selected branch if not 'all'
   const branchFilteredAssets = selectedBranchId === 'all'
@@ -92,32 +106,79 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   const selectedBranchObj = branches.find((b) => b.id === selectedBranchId);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Top Banner & Context */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 bg-white p-3.5 sm:p-5 rounded-xl border border-slate-200">
         <div>
           <div className="text-xs font-medium text-slate-500">
             Selamat datang, <span className="text-slate-900 font-semibold">{currentUser.name}</span>
           </div>
-          <h2 className="text-xl font-bold text-slate-950 mt-0.5">
+          <h2 className="text-lg sm:text-xl font-bold text-slate-950 mt-0.5 leading-tight">
             Monitoring Fasilitas & Inventaris Multi-Cabang GA
           </h2>
-          <div className="text-xs text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
+          <div className="text-xs text-slate-500 mt-2 flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-md text-slate-900 font-mono shadow-2xs">
+              <Clock className="w-3.5 h-3.5 text-emerald-600 animate-pulse shrink-0" />
+              <span className="font-bold text-slate-950">{realtimeJakarta}</span>
+              <span className="text-[10px] text-slate-500 font-sans font-medium">WIB</span>
+            </div>
+            <span>·</span>
             <span>Peran: <strong className="text-slate-900">{currentUser.roleLabel}</strong></span>
             <span>·</span>
             <span>Departemen: {currentUser.department}</span>
             <span>·</span>
-            <span className="text-emerald-700 font-medium">Sesi Terautentikasi PIN</span>
+            <span className="text-emerald-700 font-medium">PIN Aktif</span>
           </div>
         </div>
 
-        {/* Global Branch Filter Selector */}
-        <div className="flex flex-wrap items-center gap-3">
+        {/* Global Branch Filter Selector & Action Buttons */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full lg:w-auto">
           <BranchSelector
             branches={branches}
             selectedBranchId={selectedBranchId}
             onSelectBranch={onSelectBranch}
           />
+
+          <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+            {onExportExcel && (
+              <button
+                onClick={onExportExcel}
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors shadow-2xs whitespace-nowrap"
+                title="Unduh Data Inventaris Rapi ke Excel (.xlsx)"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-700" />
+                <span>Tarik Data Excel</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => {
+                const recipient = currentUser.email || 'Riyadirama88@gmail.com';
+                const subject = `[GA-OPS REKAP] Ringkasan Status Fasilitas & Inventaris - 15 Okt 2026`;
+                const body = `Yth. ${currentUser.name} (${recipient}),
+
+Berikut adalah rekapitulasi status pemeliharaan fasilitas kantor GA-Ops:
+- Total Fasilitas : ${totalAssets} Unit
+- Rata-rata Kesehatan : ${overallHealth}%
+- Realisasi Biaya : Rp ${totalCost.toLocaleString('id-ID')}
+- Aset Perlu Servis Segera : ${serviceDueAssets.length + overdueAssets.length} Unit
+
+Data ini dikirimkan otomatis ke alamat email terdaftar Anda.
+
+Salam,
+Tim General Affairs & Facilities Management`;
+
+                dispatchDirectEmail([recipient], subject, body, 'DASHBOARD-REKAP', 'Rekapitulasi Harian GA', true);
+                alert(`Rekap status fasilitas berhasil dikirimkan ke email terdaftar: ${recipient}`);
+              }}
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg border border-slate-200 transition-colors shadow-2xs whitespace-nowrap"
+              title="Kirim Ringkasan Status ke Email Terdaftar"
+            >
+              <Mail className="w-3.5 h-3.5 text-slate-600" />
+              <span>Kirim Rekap Email</span>
+            </button>
+          </div>
+
 
           {currentUser.roleId === 'full_admin' && (
             <button
@@ -245,12 +306,12 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         </div>
 
         {/* Metric 4: Total Maintenance Expenditure */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200">
+        <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200">
           <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
             Realisasi Biaya Pemeliharaan
           </div>
           <div className="flex items-baseline gap-2 mt-2">
-            <span className="text-2xl font-extrabold font-mono tabular-nums text-slate-950 truncate">
+            <span className="text-xl sm:text-2xl font-extrabold font-mono tabular-nums text-slate-950 truncate">
               Rp {(totalCost / 1000000).toFixed(1)} Jt
             </span>
           </div>
@@ -266,8 +327,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         </div>
       </div>
 
-      {/* Categorization Mode Switcher (User Requirement 4) */}
-      <div className="bg-white p-5 rounded-xl border border-slate-200 space-y-4">
+      {/* Categorization Mode Switcher */}
+      <div className="bg-white p-3.5 sm:p-5 rounded-xl border border-slate-200 space-y-3.5 sm:space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
           <div>
             <h3 className="font-bold text-slate-900 text-sm">
@@ -279,33 +340,33 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           </div>
 
           {/* Toggle Button: Sesuai Cabang vs Tipe Barang */}
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-xs self-start sm:self-auto">
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-xs w-full sm:w-auto">
             <button
               onClick={() => setCategorizationMode('branch')}
-              className={`px-3 py-1.5 font-semibold rounded-md transition-colors ${
+              className={`flex-1 sm:flex-initial px-3 py-1.5 font-semibold rounded-md transition-colors text-center ${
                 categorizationMode === 'branch'
                   ? 'bg-slate-900 text-white shadow-2xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Kategori Berdasarkan Cabang
+              Kategori Cabang
             </button>
             <button
               onClick={() => setCategorizationMode('type')}
-              className={`px-3 py-1.5 font-semibold rounded-md transition-colors ${
+              className={`flex-1 sm:flex-initial px-3 py-1.5 font-semibold rounded-md transition-colors text-center ${
                 categorizationMode === 'type'
                   ? 'bg-slate-900 text-white shadow-2xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Kategori Tipe Barang
+              Tipe Barang
             </button>
           </div>
         </div>
 
         {/* MODE 1: Kategori Berdasarkan Cabang */}
         {categorizationMode === 'branch' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {branches.map((b) => {
               const bAssets = assets.filter((a) => a.branchId === b.id);
               const bCost = bAssets.reduce((sum, a) => sum + a.actualCostTotal, 0);
@@ -339,7 +400,11 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          onOpenUserManagement();
+                          if (onOpenBranchManagement) {
+                            onOpenBranchManagement(b.id);
+                          } else {
+                            onOpenUserManagement();
+                          }
                         }}
                         className="flex items-center gap-1 text-[10px] text-slate-700 hover:text-slate-950 bg-slate-100 hover:bg-slate-200 px-1.5 py-0.5 rounded font-medium transition-colors"
                         title="Edit Alamat atau PIC Cabang Ini"
@@ -388,29 +453,55 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
 
         {/* MODE 2: Kategori Tipe Barang */}
         {categorizationMode === 'type' && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-            {['hvac', 'power_genset', 'elevator', 'fire_safety', 'it_network', 'office_facility', 'vehicle', 'plumbing'].map((cat) => {
-              const catAssets = branchFilteredAssets.filter((a) => a.category === cat);
-              const catCost = catAssets.reduce((sum, a) => sum + a.actualCostTotal, 0);
-              const catHealth = Math.round(
-                catAssets.reduce((sum, a) => sum + a.healthScore, 0) / (catAssets.length || 1)
-              );
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-500 font-medium">
+                Distribusi Inventaris Berdasarkan Kategori Fasilitas ({categories.length} Kategori)
+              </span>
+              {onOpenCategoryManagement && (
+                <button
+                  type="button"
+                  onClick={onOpenCategoryManagement}
+                  className="flex items-center gap-1 text-[11px] font-semibold text-slate-800 hover:text-slate-950 underline"
+                >
+                  <FolderTree className="w-3.5 h-3.5" />
+                  <span>+ Tambah / Edit Kategori</span>
+                </button>
+              )}
+            </div>
 
-              return (
-                <div key={cat} className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <div className="font-bold text-slate-900 uppercase text-[11px] truncate">
-                    {cat.replace('_', ' ')}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 text-xs">
+              {categories.map((cat) => {
+                const catAssets = branchFilteredAssets.filter((a) => a.category === cat.id);
+                const catCost = catAssets.reduce((sum, a) => sum + a.actualCostTotal, 0);
+                const catHealth = Math.round(
+                  catAssets.reduce((sum, a) => sum + a.healthScore, 0) / (catAssets.length || 1)
+                );
+
+                return (
+                  <div key={cat.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="font-bold text-slate-900 uppercase text-[11px] truncate">
+                          {cat.name}
+                        </span>
+                        <span className="font-mono text-[10px] font-bold text-slate-600 bg-white border border-slate-200 px-1.5 py-0.2 rounded">
+                          {cat.code}
+                        </span>
+                      </div>
+                      <div className="flex items-baseline justify-between mt-2 font-mono">
+                        <span className="text-slate-900 font-bold">{catAssets.length} Unit</span>
+                        <span className="text-emerald-700 font-semibold">{catHealth}% Sehat</span>
+                      </div>
+                    </div>
+                    <div className="text-[10px] text-slate-500 mt-2 pt-1.5 border-t border-slate-200 flex items-center justify-between font-mono">
+                      <span>Total Biaya:</span>
+                      <span className="font-semibold text-slate-800">Rp {catCost.toLocaleString('id-ID')}</span>
+                    </div>
                   </div>
-                  <div className="flex items-baseline justify-between mt-2 font-mono">
-                    <span className="text-slate-900 font-bold">{catAssets.length} Unit</span>
-                    <span className="text-emerald-700 font-semibold">{catHealth}% Sehat</span>
-                  </div>
-                  <div className="text-[10px] text-slate-500 mt-1 font-mono">
-                    Rp {catCost.toLocaleString('id-ID')}
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

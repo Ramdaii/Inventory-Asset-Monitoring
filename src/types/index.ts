@@ -14,6 +14,7 @@ export type PermissionKey =
   | 'upload_documents'
   | 'manage_barcodes'
   | 'manage_branches'
+  | 'manage_categories'
   | 'email_notifications'
   | 'export_reports'
   | 'manage_backups'
@@ -50,6 +51,17 @@ export interface UserProfile {
   avatarUrl: string;
 }
 
+export interface CategoryDefinition {
+  id: string; // e.g. 'hvac', 'power_genset', 'fire_safety', or custom
+  code: string; // e.g. 'AC/HVAC', 'GEN', 'APAR', 'NET'
+  name: string; // e.g. 'HVAC / Pendingin Ruangan (AC)'
+  description: string;
+  color?: string;
+  icon?: string;
+  key?: string;
+  label?: string;
+}
+
 export type AssetCategory = 
   | 'hvac' 
   | 'power_genset' 
@@ -58,7 +70,8 @@ export type AssetCategory =
   | 'it_network' 
   | 'office_facility' 
   | 'vehicle' 
-  | 'plumbing';
+  | 'plumbing'
+  | string;
 
 export type AssetStatus = 
   | 'optimal' 
@@ -156,8 +169,8 @@ export interface EmailNotificationLog {
   assetCode: string;
   assetName: string;
   daysRemaining: number;
-  triggerType: '7_days_alert' | '3_days_alert' | 'due_today' | 'overdue_escalation' | 'manual_test';
-  status: 'delivered' | 'simulated';
+  triggerType: '7_days_alert' | '3_days_alert' | 'due_today' | 'overdue_escalation' | 'manual_test' | 'gmail_direct';
+  status: 'delivered' | 'simulated' | 'sent';
   previewBody: string;
 }
 

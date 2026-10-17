@@ -6,7 +6,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { Asset, Branch } from '../types';
-import { Printer, Download, X, QrCode, ShieldCheck, Tag, Upload, Image as ImageIcon, Trash2 } from 'lucide-react';
+import { Printer, Download, X, QrCode, ShieldCheck, Tag, Upload, Image as ImageIcon, Trash2, ArrowLeft } from 'lucide-react';
 
 interface BarcodeModalProps {
   asset: Asset | null;
@@ -104,15 +104,26 @@ export const BarcodeModal: React.FC<BarcodeModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200">
-        {/* Top Header */}
+        {/* Top Header with Back button */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50">
-          <div className="flex items-center gap-2">
-            <Tag className="w-5 h-5 text-slate-700" />
-            <div>
-              <h3 className="font-semibold text-slate-900 text-base">Label Barcode & QR Tag Aset</h3>
-              <p className="text-[11px] text-slate-500">
-                {asset.customBarcodeImage ? 'Menggunakan Barcode Kustom Anda' : 'Barcode Standar Terverifikasi'}
-              </p>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onClose}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-950 bg-white hover:bg-slate-200 border border-slate-200 rounded-lg transition-colors shadow-2xs"
+              title="Kembali ke Halaman Sebelumnya"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Kembali</span>
+            </button>
+
+            <div className="flex items-center gap-2">
+              <Tag className="w-5 h-5 text-slate-700" />
+              <div>
+                <h3 className="font-semibold text-slate-900 text-base leading-tight">Label Barcode & QR Tag Aset</h3>
+                <p className="text-[11px] text-slate-500">
+                  {asset.customBarcodeImage ? 'Menggunakan Barcode Kustom Anda' : 'Barcode Standar Terverifikasi'}
+                </p>
+              </div>
             </div>
           </div>
           <button
@@ -256,13 +267,15 @@ export const BarcodeModal: React.FC<BarcodeModalProps> = ({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 bg-slate-50 border-t border-slate-100">
+        <div className="flex items-center justify-between gap-3 px-6 py-4 bg-slate-50 border-t border-slate-100">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-200/60 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 hover:text-slate-900 rounded-lg hover:bg-slate-200/60 transition-colors"
           >
-            Tutup
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Kembali ke Halaman Sebelumnya</span>
           </button>
+          <div className="flex items-center gap-2">
           <button
             onClick={handleDownload}
             className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors shadow-2xs"
@@ -277,6 +290,7 @@ export const BarcodeModal: React.FC<BarcodeModalProps> = ({
             <Printer className="w-3.5 h-3.5" />
             Cetak Label Tag Fisik
           </button>
+          </div>
         </div>
       </div>
     </div>

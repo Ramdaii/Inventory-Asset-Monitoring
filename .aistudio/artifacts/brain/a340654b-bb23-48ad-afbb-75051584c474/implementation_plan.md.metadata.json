@@ -1,0 +1,6 @@
+{
+  "summary": "Revisi 3 Implementation Plan Migrasi Supabase yang menyempurnakan aspek keamanan tingkat tinggi: RLS berbasis sesi/role/branch_id nyata (tanpa bypass is_deleted), penguncian fungsi SECURITY DEFINER dengan search_path dan revoke public, rate limiting atomik berbasis SELECT FOR UPDATE anti race condition, pemisahan mode cloud dan offline secara eksplisit (tanpa fallback silent), antrean mutasi offline persisten idempotent dengan deteksi konflik versi, audit skema non-destruktif dengan ADD COLUMN IF NOT EXISTS, penjelasan validasi token anti-spoofing, dan eliminasi PIN contoh pada lingkungan produksi.",
+  "updatedAt": "2026-10-17T08:22:08.203665930Z",
+  "requestFeedback": true,
+  "userFacing": true
+}

@@ -5,15 +5,17 @@
 
 import { Asset, EmailNotificationLog, EmailNotificationSettings } from '../types';
 import { getStoredEmailLogs, saveStoredEmailLogs } from './storage';
+import {
+  getDaysRemainingJakarta,
+  getJakartaDateString,
+  formatJakartaFullDateTime,
+} from './dateTime';
 
 /**
- * Calculates days remaining from today to target date
+ * Calculates days remaining from today (Asia/Jakarta timezone) to target date
  */
-export function getDaysRemaining(targetDateStr: string, referenceDateStr: string = '2026-10-14'): number {
-  const target = new Date(targetDateStr);
-  const ref = new Date(referenceDateStr);
-  const diffTime = target.getTime() - ref.getTime();
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+export function getDaysRemaining(targetDateStr: string, referenceDateStr?: string): number {
+  return getDaysRemainingJakarta(targetDateStr, referenceDateStr);
 }
 
 /**
@@ -93,18 +95,19 @@ Kantor Pusat`;
 export function checkAndDispatchNotifications(
   assets: Asset[],
   settings: EmailNotificationSettings,
-  referenceDateStr: string = '2026-10-14'
+  referenceDateStr?: string
 ): { dispatchedCount: number; newLogs: EmailNotificationLog[] } {
   if (!settings.enabled) {
     return { dispatchedCount: 0, newLogs: [] };
   }
 
+  const effectiveRefDate = referenceDateStr || getJakartaDateString();
   const existingLogs = getStoredEmailLogs();
   const newLogs: EmailNotificationLog[] = [];
   const recipients = [settings.primaryEmail, ...settings.additionalEmails].filter(Boolean);
 
   for (const asset of assets) {
-    const days = getDaysRemaining(asset.nextMaintenanceDate, referenceDateStr);
+    const days = getDaysRemaining(asset.nextMaintenanceDate, effectiveRefDate);
 
     let shouldTrigger = false;
 
@@ -123,7 +126,7 @@ export function checkAndDispatchNotifications(
       const alreadySent = existingLogs.some(
         (log) =>
           log.assetCode === asset.code &&
-          log.timestamp.startsWith(referenceDateStr) &&
+          log.timestamp.startsWith(effectiveRefDate) &&
           log.daysRemaining === days
       );
 
@@ -132,7 +135,7 @@ export function checkAndDispatchNotifications(
           const { subject, body, triggerType } = generateEmailTemplate(asset, days, recipient);
           const newLog: EmailNotificationLog = {
             id: `email-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-            timestamp: `${referenceDateStr} ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB`,
+            timestamp: formatJakartaFullDateTime(),
             recipient,
             subject,
             assetCode: asset.code,
@@ -165,3 +168,46 @@ export function checkAndDispatchNotifications(
 export function createMailtoLink(recipient: string, subject: string, body: string): string {
   return `mailto:${encodeURIComponent(recipient)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
+
+/**
+ * Dispatches a direct email report or reminder to registered recipients and records delivery log
+ */
+export function dispatchDirectEmail(
+  recipients: string[],
+  subject: string,
+  body: string,
+  assetCode: string = 'GA-OPS',
+  assetName: string = 'Laporan Operasional Fasilitas',
+  openClient: boolean = false
+): EmailNotificationLog {
+  const existingLogs = getStoredEmailLogs();
+  const primaryRecipient = recipients[0] || 'Riyadirama88@gmail.com';
+  const newLog: EmailNotificationLog = {
+    id: `email-direct-${Date.now()}`,
+    timestamp: formatJakartaFullDateTime(),
+    recipient: recipients.join(', '),
+    subject,
+    assetCode,
+    assetName,
+    daysRemaining: 0,
+    triggerType: 'manual_test',
+    status: 'delivered',
+    previewBody: body,
+  };
+
+  saveStoredEmailLogs([newLog, ...existingLogs]);
+
+  if (openClient) {
+    try {
+      const mailto = createMailtoLink(primaryRecipient, subject, body);
+      const link = document.createElement('a');
+      link.href = mailto;
+      link.click();
+    } catch (e) {
+      console.warn('Mail client open skipped:', e);
+    }
+  }
+
+  return newLog;
+}
+

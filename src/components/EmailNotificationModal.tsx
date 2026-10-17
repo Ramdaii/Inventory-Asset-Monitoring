@@ -23,6 +23,7 @@ import {
   Settings2,
   ListFilter,
   FileText,
+  ArrowLeft,
 } from 'lucide-react';
 
 interface EmailNotificationModalProps {
@@ -33,6 +34,7 @@ interface EmailNotificationModalProps {
   logs: EmailNotificationLog[];
   onUpdateSettings: (newSettings: EmailNotificationSettings) => void;
   onUpdateLogs: (newLogs: EmailNotificationLog[]) => void;
+  onOpenGmail?: () => void;
 }
 
 export const EmailNotificationModal: React.FC<EmailNotificationModalProps> = ({
@@ -43,6 +45,7 @@ export const EmailNotificationModal: React.FC<EmailNotificationModalProps> = ({
   logs,
   onUpdateSettings,
   onUpdateLogs,
+  onOpenGmail,
 }) => {
   const [activeTab, setActiveTab] = useState<'status' | 'logs' | 'settings'>('status');
   const [primaryEmail, setPrimaryEmail] = useState(settings.primaryEmail);
@@ -110,16 +113,28 @@ export const EmailNotificationModal: React.FC<EmailNotificationModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full overflow-hidden border border-slate-200 flex flex-col max-h-[90vh]">
         {/* Header */}
+        {/* Header with Back button */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50 shrink-0">
-          <div className="flex items-center gap-2">
-            <Mail className="w-5 h-5 text-slate-800" />
-            <div>
-              <h3 className="font-semibold text-slate-900 text-base">
-                Pusat Notifikasi Email Otomatis GA
-              </h3>
-              <p className="text-xs text-slate-500">
-                Pengingat jadwal perawatan fasilitas kantor & eskalasi keterlambatan
-              </p>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onClose}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-950 bg-white hover:bg-slate-200 border border-slate-200 rounded-lg transition-colors shadow-2xs"
+              title="Kembali ke Halaman Sebelumnya"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Kembali</span>
+            </button>
+
+            <div className="flex items-center gap-2">
+              <Mail className="w-5 h-5 text-slate-800" />
+              <div>
+                <h3 className="font-semibold text-slate-900 text-base leading-tight">
+                  Pusat Notifikasi Email Otomatis GA
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Pengingat jadwal perawatan fasilitas kantor & eskalasi keterlambatan
+                </p>
+              </div>
             </div>
           </div>
           <button
@@ -176,6 +191,36 @@ export const EmailNotificationModal: React.FC<EmailNotificationModalProps> = ({
         <div className="p-6 overflow-y-auto space-y-4 flex-1">
           {activeTab === 'status' && (
             <div className="space-y-4">
+              {/* Gmail API Integration Banner */}
+              {onOpenGmail && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 bg-rose-50/80 border border-rose-200 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-white border border-rose-200 text-rose-600 flex items-center justify-center shrink-0">
+                      <Mail className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-900">
+                        Integrasi Gmail (Google Workspace)
+                      </h4>
+                      <p className="text-[11px] text-slate-600">
+                        Kirim email langsung dari akun Gmail resmi Anda, lihat kotak masuk, dan buat SPK.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onOpenGmail();
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-800 bg-white hover:bg-rose-100 border border-rose-300 rounded-lg transition-colors shadow-2xs whitespace-nowrap"
+                  >
+                    <Mail className="w-3.5 h-3.5" />
+                    <span>Buka Gmail Hub</span>
+                  </button>
+                </div>
+              )}
+
               <div className="flex items-center justify-between bg-slate-50 p-4 rounded-xl border border-slate-200">
                 <div>
                   <div className="text-xs font-semibold text-slate-900">
@@ -421,10 +466,16 @@ export const EmailNotificationModal: React.FC<EmailNotificationModalProps> = ({
 
         {/* Footer */}
         <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 shrink-0">
-          <span>Engine Status: Aktif · Pemindaian Terjadwal Harian</span>
           <button
             onClick={onClose}
-            className="px-4 py-1.5 text-xs font-medium text-slate-700 hover:text-slate-900 rounded-md hover:bg-slate-200/50"
+            className="flex items-center gap-1.5 px-3 py-1.5 font-semibold text-slate-700 hover:text-slate-900 rounded-md hover:bg-slate-200/50 transition-colors"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Kembali ke Halaman Sebelumnya</span>
+          </button>
+          <button
+            onClick={onClose}
+            className="px-4 py-1.5 text-xs font-semibold bg-slate-900 text-white rounded-lg hover:bg-slate-800"
           >
             Tutup
           </button>

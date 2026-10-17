@@ -5,6 +5,12 @@
 
 import React, { useState } from 'react';
 import { Asset, AssetDocument, Branch, MaintenanceLog, UserProfile } from '../types';
+import { dispatchDirectEmail, generateEmailTemplate, getDaysRemaining } from '../utils/notificationEngine';
+import {
+  getJakartaDateString,
+  calculateNextJakartaMaintenanceDate,
+  formatJakartaFullDateTime,
+} from '../utils/dateTime';
 import {
   X,
   Calendar,
@@ -25,6 +31,8 @@ import {
   Trash2,
   ExternalLink,
   Image as ImageIcon,
+  ArrowLeft,
+  Mail,
 } from 'lucide-react';
 
 interface AssetDetailModalProps {
@@ -50,7 +58,7 @@ export const AssetDetailModal: React.FC<AssetDetailModalProps> = ({
   
   // New maintenance log form state
   const [logType, setLogType] = useState<MaintenanceLog['type']>('routine_preventive');
-  const [logDate, setLogDate] = useState('2026-10-14');
+  const [logDate, setLogDate] = useState(() => getJakartaDateString());
   const [logTechName, setLogTechName] = useState(currentUser.name);
   const [logVendor, setLogVendor] = useState(asset?.vendor || '');
   const [logCost, setLogCost] = useState<number>(asset?.estimatedCost || 0);
@@ -91,15 +99,8 @@ export const AssetDetailModal: React.FC<AssetDetailModalProps> = ({
       receiptAttached: true,
     };
 
-    const currentDateObj = new Date(logDate);
-    if (asset.frequency === 'monthly') currentDateObj.setMonth(currentDateObj.getMonth() + 1);
-    else if (asset.frequency === 'quarterly') currentDateObj.setMonth(currentDateObj.getMonth() + 3);
-    else if (asset.frequency === 'biannually') currentDateObj.setMonth(currentDateObj.getMonth() + 6);
-    else if (asset.frequency === 'annually') currentDateObj.setFullYear(currentDateObj.getFullYear() + 1);
-    else if (asset.frequency === 'biweekly') currentDateObj.setDate(currentDateObj.getDate() + 14);
-    else currentDateObj.setDate(currentDateObj.getDate() + 30);
-
-    const nextDateFormatted = currentDateObj.toISOString().slice(0, 10);
+    // Calculate next maintenance date accurately in Asia/Jakarta timezone
+    const nextDateFormatted = calculateNextJakartaMaintenanceDate(logDate, asset.frequency);
 
     const updatedAsset: Asset = {
       ...asset,
@@ -139,7 +140,7 @@ export const AssetDetailModal: React.FC<AssetDetailModalProps> = ({
       id: `doc-${Date.now()}`,
       title: newDocTitle.endsWith('.pdf') ? newDocTitle : `${newDocTitle}.pdf`,
       type: newDocType,
-      uploadDate: new Date().toISOString().slice(0, 10),
+      uploadDate: getJakartaDateString(),
       fileSize: `${(Math.random() * 2 + 1).toFixed(1)} MB`,
       encrypted: true,
       description: `Dokumen resmi diunggah oleh ${currentUser.name}`,
@@ -167,37 +168,57 @@ export const AssetDetailModal: React.FC<AssetDetailModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full overflow-hidden border border-slate-200 flex flex-col max-h-[92vh]">
         {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-slate-900 text-white rounded-lg">
-              <Building className="w-5 h-5" />
+        <div className="px-3 sm:px-6 py-3 sm:py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between shrink-0 flex-wrap sm:flex-nowrap gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <button
+              onClick={onClose}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-950 bg-white hover:bg-slate-200 border border-slate-200 rounded-lg transition-colors shadow-2xs shrink-0"
+              title="Kembali ke Halaman Sebelumnya"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Kembali</span>
+            </button>
+
+            <div className="p-1.5 sm:p-2 bg-slate-900 text-white rounded-lg shrink-0">
+              <Building className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="font-mono text-xs font-bold text-slate-700 bg-slate-200 px-1.5 py-0.5 rounded">
                   {asset.code}
                 </span>
-                <span className="text-xs font-semibold text-slate-800">
+                <span className="text-xs font-semibold text-slate-800 truncate">
                   {matchedBranch ? matchedBranch.name : 'Cabang RAD'}
                 </span>
-                <span className="text-xs text-slate-400">·</span>
-                <span className="text-xs text-emerald-700 font-medium flex items-center gap-1">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  E2EE Protected
-                </span>
               </div>
-              <h3 className="font-bold text-slate-900 text-lg leading-tight mt-0.5">
+              <h3 className="font-bold text-slate-900 text-sm sm:text-lg leading-tight mt-0.5 truncate">
                 {asset.name}
               </h3>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => {
+                const recipient = currentUser.email || 'Riyadirama88@gmail.com';
+                const days = getDaysRemaining(asset.nextMaintenanceDate, '2026-10-15');
+                const { subject, body } = generateEmailTemplate(asset, days, recipient);
+                dispatchDirectEmail([recipient], subject, body, asset.code, asset.name, true);
+                alert(`Pengingat servis untuk ${asset.code} berhasil dikirimkan ke email terdaftar: ${recipient}`);
+              }}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors shadow-2xs"
+              title="Kirim Jadwal & Pengingat Servis ke Email Terdaftar"
+            >
+              <Mail className="w-3.5 h-3.5 text-slate-600" />
+              <span className="hidden sm:inline">Kirim ke Email</span>
+              <span className="sm:hidden">Email</span>
+            </button>
+
             <button
               onClick={() => onOpenBarcode(asset)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors shadow-2xs"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors shadow-2xs"
             >
               <Tag className="w-3.5 h-3.5" />
-              Label Barcode
+              <span>Barcode</span>
             </button>
             <button
               onClick={onClose}
@@ -209,10 +230,10 @@ export const AssetDetailModal: React.FC<AssetDetailModalProps> = ({
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex items-center gap-1 px-6 pt-2 border-b border-slate-200 bg-white shrink-0 text-xs">
+        <div className="flex items-center gap-1 px-3 sm:px-6 pt-2 border-b border-slate-200 bg-white shrink-0 text-xs overflow-x-auto">
           <button
             onClick={() => setActiveTab('overview')}
-            className={`px-3 py-2.5 font-medium border-b-2 transition-colors ${
+            className={`px-3 py-2.5 font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
               activeTab === 'overview'
                 ? 'border-slate-900 text-slate-900'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -222,7 +243,7 @@ export const AssetDetailModal: React.FC<AssetDetailModalProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('history')}
-            className={`px-3 py-2.5 font-medium border-b-2 transition-colors ${
+            className={`px-3 py-2.5 font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
               activeTab === 'history'
                 ? 'border-slate-900 text-slate-900'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -232,7 +253,7 @@ export const AssetDetailModal: React.FC<AssetDetailModalProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('documents')}
-            className={`px-3 py-2.5 font-medium border-b-2 transition-colors ${
+            className={`px-3 py-2.5 font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
               activeTab === 'documents'
                 ? 'border-slate-900 text-slate-900'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -243,13 +264,13 @@ export const AssetDetailModal: React.FC<AssetDetailModalProps> = ({
           {canLogMaintenance && (
             <button
               onClick={() => setActiveTab('log_new')}
-              className={`px-3 py-2.5 font-medium border-b-2 transition-colors ${
+              className={`px-3 py-2.5 font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
                 activeTab === 'log_new'
                   ? 'border-slate-900 text-slate-900'
                   : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
             >
-              + Catat Servis Baru
+              + Catat Servis
             </button>
           )}
         </div>
@@ -648,7 +669,7 @@ export const AssetDetailModal: React.FC<AssetDetailModalProps> = ({
 
                 <div>
                   <label className="font-semibold text-slate-700 block mb-1">
-                    Tanggal Pengerjaan:
+                    Tanggal Pengerjaan <span className="text-emerald-700 font-mono text-[11px]">(WIB - Jakarta)</span>:
                   </label>
                   <input
                     type="date"
@@ -762,12 +783,21 @@ export const AssetDetailModal: React.FC<AssetDetailModalProps> = ({
               </button>
             )}
           </div>
-          <button
-            onClick={onClose}
-            className="px-4 py-1.5 text-xs font-medium text-slate-700 hover:text-slate-900 rounded-md hover:bg-slate-200/50"
-          >
-            Tutup
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              className="flex items-center gap-1 px-3 py-1.5 font-semibold text-slate-700 hover:text-slate-900 rounded-md hover:bg-slate-200/50 transition-colors"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Kembali ke Halaman Sebelumnya</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="px-4 py-1.5 text-xs font-semibold bg-slate-900 text-white rounded-lg hover:bg-slate-800"
+            >
+              Tutup
+            </button>
+          </div>
         </div>
       </div>
     </div>

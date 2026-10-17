@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { Asset, AssetCategory, AssetStatus, Branch, UserProfile } from '../types';
+import { Asset, AssetCategory, AssetStatus, Branch, CategoryDefinition, UserProfile } from '../types';
 import { getDaysRemaining } from '../utils/notificationEngine';
 import { BranchSelector } from './BranchSelector';
 import {
@@ -19,11 +19,15 @@ import {
   ScanLine,
   Building,
   Upload,
+  ArrowLeft,
+  FolderTree,
+  FileSpreadsheet,
 } from 'lucide-react';
 
 interface AssetListProps {
   assets: Asset[];
   branches: Branch[];
+  categories?: CategoryDefinition[];
   currentUser: UserProfile;
   selectedBranchId: string;
   onSelectBranch: (branchId: string) => void;
@@ -31,11 +35,15 @@ interface AssetListProps {
   onOpenBarcode: (asset: Asset) => void;
   onOpenNewAsset: () => void;
   onOpenScanner: () => void;
+  onBackToDashboard?: () => void;
+  onOpenCategoryManagement?: () => void;
+  onExportExcel?: () => void;
 }
 
 export const AssetList: React.FC<AssetListProps> = ({
   assets,
   branches,
+  categories = [],
   currentUser,
   selectedBranchId,
   onSelectBranch,
@@ -43,6 +51,9 @@ export const AssetList: React.FC<AssetListProps> = ({
   onOpenBarcode,
   onOpenNewAsset,
   onOpenScanner,
+  onBackToDashboard,
+  onOpenCategoryManagement,
+  onExportExcel,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | AssetStatus>('all');
@@ -71,56 +82,103 @@ export const AssetList: React.FC<AssetListProps> = ({
 
   return (
     <div className="space-y-4">
+      {/* Page Navigation & Action Bar with Back Button */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-white p-3 sm:p-3.5 rounded-xl border border-slate-200">
+        <div className="flex items-center justify-between sm:justify-start gap-2">
+          {onBackToDashboard && (
+            <button
+              onClick={onBackToDashboard}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-950 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg transition-colors shadow-2xs"
+              title="Kembali ke Ringkasan Dashboard"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Kembali</span>
+            </button>
+          )}
+          <span className="text-xs text-slate-500">
+            Inventaris: <strong className="text-slate-900 font-semibold">{filteredAssets.length}</strong> fasilitas
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {onOpenCategoryManagement && (
+            <button
+              onClick={onOpenCategoryManagement}
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-950 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors shadow-2xs"
+              title="Kelola & Edit Kategori Fasilitas"
+            >
+              <FolderTree className="w-3.5 h-3.5 text-slate-600" />
+              <span>Kelola Kategori</span>
+            </button>
+          )}
+
+          {onExportExcel && (
+            <button
+              onClick={onExportExcel}
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors shadow-2xs"
+              title="Unduh Data Inventaris Rapi ke Excel (.xlsx)"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-700" />
+              <span>Tarik Excel</span>
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Top Filter and Search Bar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 flex flex-col gap-3">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="flex-1 flex items-center gap-3">
-            <div className="relative flex-1 max-w-md">
+      <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 flex flex-col gap-3">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+          <div className="flex-1 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
+            <div className="relative flex-1">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Cari kode aset, nama fasilitas, ruangan, atau vendor..."
+                placeholder="Cari kode aset, nama, ruangan, vendor..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900"
               />
             </div>
 
-            <div className="flex items-center gap-2">
-              <select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value as any)}
-                className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900"
-              >
-                <option value="all">Semua Kategori</option>
-                <option value="hvac">HVAC / AC Chiller</option>
-                <option value="power_genset">Genset & Power</option>
-                <option value="elevator">Lift & Eskalator</option>
-                <option value="fire_safety">Sistem APAR</option>
-                <option value="it_network">IT Network & Server</option>
-                <option value="office_facility">Pantry & Kantor</option>
-                <option value="vehicle">Kendaraan GA</option>
-                <option value="plumbing">Plumbing & Pompa</option>
-              </select>
-            </div>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value as any)}
+              className="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 shrink-0"
+            >
+              <option value="all">Semua Kategori ({assets.length})</option>
+              {(categories.length > 0 ? categories : [
+                { id: 'hvac', name: 'HVAC / AC Chiller' },
+                { id: 'power_genset', name: 'Genset & Power' },
+                { id: 'elevator', name: 'Lift & Eskalator' },
+                { id: 'fire_safety', name: 'Sistem APAR' },
+                { id: 'it_network', name: 'IT Network & Server' },
+                { id: 'office_facility', name: 'Pantry & Kantor' },
+                { id: 'vehicle', name: 'Kendaraan GA' },
+                { id: 'plumbing', name: 'Plumbing & Pompa' },
+              ]).map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="flex items-center gap-2">
             {canCreate && (
               <button
                 onClick={onOpenNewAsset}
-                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors shadow-2xs whitespace-nowrap"
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-semibold bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors shadow-2xs whitespace-nowrap"
               >
                 <Plus className="w-3.5 h-3.5" />
-                Tambah Aset Baru
+                <span>+ Aset Baru</span>
               </button>
             )}
             <button
               onClick={onOpenScanner}
-              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors shadow-2xs whitespace-nowrap"
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-semibold bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors shadow-2xs whitespace-nowrap"
             >
               <ScanLine className="w-3.5 h-3.5" />
-              Scan Barcode
+              <span>Scan Barcode</span>
             </button>
           </div>
         </div>
@@ -134,20 +192,20 @@ export const AssetList: React.FC<AssetListProps> = ({
           />
 
           {/* Status Tabs */}
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg w-fit text-xs self-start sm:self-auto">
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg w-full sm:w-auto text-xs overflow-x-auto">
             <button
               onClick={() => setStatusFilter('all')}
-              className={`px-3 py-1 font-medium rounded-md transition-colors ${
-                statusFilter === 'all' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+              className={`px-2.5 sm:px-3 py-1 font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
+                statusFilter === 'all' ? 'bg-white text-slate-900 shadow-2xs font-semibold' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               Semua ({assets.length})
             </button>
             <button
               onClick={() => setStatusFilter('optimal')}
-              className={`px-3 py-1 font-medium rounded-md transition-colors ${
+              className={`px-2.5 sm:px-3 py-1 font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
                 statusFilter === 'optimal'
-                  ? 'bg-white text-slate-900 shadow-2xs'
+                  ? 'bg-white text-slate-900 shadow-2xs font-semibold'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -155,19 +213,19 @@ export const AssetList: React.FC<AssetListProps> = ({
             </button>
             <button
               onClick={() => setStatusFilter('service_due')}
-              className={`px-3 py-1 font-medium rounded-md transition-colors ${
+              className={`px-2.5 sm:px-3 py-1 font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
                 statusFilter === 'service_due'
-                  ? 'bg-white text-slate-900 shadow-2xs'
+                  ? 'bg-white text-slate-900 shadow-2xs font-semibold'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Perlu Servis ({assets.filter((a) => a.status === 'service_due').length})
+              Servis ({assets.filter((a) => a.status === 'service_due').length})
             </button>
             <button
               onClick={() => setStatusFilter('critical_overdue')}
-              className={`px-3 py-1 font-medium rounded-md transition-colors ${
+              className={`px-2.5 sm:px-3 py-1 font-medium rounded-md transition-colors whitespace-nowrap shrink-0 ${
                 statusFilter === 'critical_overdue'
-                  ? 'bg-white text-slate-900 shadow-2xs'
+                  ? 'bg-white text-slate-900 shadow-2xs font-semibold'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -177,8 +235,115 @@ export const AssetList: React.FC<AssetListProps> = ({
         </div>
       </div>
 
-      {/* High-Density Data Table */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
+      {/* Mobile Card View (block md:hidden) - Zero horizontal scroll on mobile */}
+      <div className="block md:hidden space-y-3">
+        {filteredAssets.length === 0 ? (
+          <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400 text-xs">
+            Tidak ada fasilitas inventaris yang sesuai dengan filter pencarian atau cabang terpilih.
+          </div>
+        ) : (
+          filteredAssets.map((asset) => {
+            const days = getDaysRemaining(asset.nextMaintenanceDate);
+            const isOverdue = days < 0;
+            const isToday = days === 0;
+            const assetBranch = branches.find((b) => b.id === asset.branchId);
+
+            return (
+              <div
+                key={asset.id}
+                onClick={() => onSelectAsset(asset)}
+                className="bg-white rounded-xl border border-slate-200 p-3.5 shadow-2xs hover:border-slate-300 transition-colors active:bg-slate-50 cursor-pointer"
+              >
+                {/* Card Top: Code, Branch & Barcode */}
+                <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-mono font-bold text-slate-900 text-xs bg-slate-100 px-2 py-0.5 rounded">
+                      {asset.code}
+                    </span>
+                    {assetBranch && (
+                      <span className="font-semibold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded text-[10px]">
+                        {assetBranch.code}
+                      </span>
+                    )}
+                    {asset.customBarcodeImage && (
+                      <span className="text-[9px] font-mono text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200">
+                        Custom
+                      </span>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenBarcode(asset);
+                    }}
+                    className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-md transition-colors"
+                  >
+                    <Tag className="w-3 h-3 text-slate-500" />
+                    <span>Barcode</span>
+                  </button>
+                </div>
+
+                {/* Card Body: Name, Model, Category, Location */}
+                <div className="py-2.5">
+                  <h4 className="font-bold text-slate-900 text-sm leading-snug">
+                    {asset.name}
+                  </h4>
+                  <div className="text-xs text-slate-500 mt-1 flex items-center gap-1.5 flex-wrap">
+                    <span>{asset.brandModel}</span>
+                    <span>·</span>
+                    <span className="uppercase text-[10px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.2 rounded">
+                      {asset.category}
+                    </span>
+                    <span>·</span>
+                    <span>{asset.location}</span>
+                  </div>
+                </div>
+
+                {/* Card Bottom: Health Score, Next Service, Cost */}
+                <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs gap-2">
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-slate-400">Kesehatan:</span>
+                      <span className="font-mono font-bold text-slate-800">{asset.healthScore}%</span>
+                    </div>
+                    <div className="w-20 bg-slate-100 h-1.5 rounded-full mt-1 overflow-hidden">
+                      <div
+                        className={`h-full ${
+                          asset.healthScore >= 80
+                            ? 'bg-emerald-500'
+                            : asset.healthScore >= 60
+                            ? 'bg-amber-500'
+                            : 'bg-rose-500'
+                        }`}
+                        style={{ width: `${asset.healthScore}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <div className="text-[11px] font-mono text-slate-800 font-medium">
+                      Due: {asset.nextMaintenanceDate}
+                    </div>
+                    <div className="text-[10px] mt-0.5">
+                      {isOverdue ? (
+                        <span className="text-rose-600 font-semibold">Lewat {Math.abs(days)} Hari</span>
+                      ) : isToday ? (
+                        <span className="text-amber-600 font-semibold">Jatuh Tempo Hari Ini</span>
+                      ) : (
+                        <span className="text-slate-400">Tersisa {days} Hari</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* High-Density Data Table (hidden on mobile, visible on md+) */}
+      <div className="hidden md:block bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
@@ -203,7 +368,7 @@ export const AssetList: React.FC<AssetListProps> = ({
                 </tr>
               ) : (
                 filteredAssets.map((asset) => {
-                  const days = getDaysRemaining(asset.nextMaintenanceDate, '2026-10-14');
+                  const days = getDaysRemaining(asset.nextMaintenanceDate);
                   const isOverdue = days < 0;
                   const isToday = days === 0;
                   const assetBranch = branches.find((b) => b.id === asset.branchId);
