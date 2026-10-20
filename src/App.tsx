@@ -16,19 +16,13 @@ import {
 } from './types';
 import {
   getStoredAssets,
-  saveStoredAssets,
   getStoredBranches,
-  saveStoredBranches,
   getStoredCategories,
-  saveStoredCategories,
   getStoredRoles,
-  saveStoredRoles,
   getStoredUsers,
-  saveStoredUsers,
   getStoredAuthUser,
   saveStoredAuthUser,
   getStoredTickets,
-  saveStoredTickets,
   getStoredEmailSettings,
   saveStoredEmailSettings,
   getStoredEmailLogs,
@@ -43,7 +37,23 @@ import { Clock, Mail, Database } from 'lucide-react';
 import { useRealtimeJakarta } from './utils/time';
 import { GmailModal } from './components/GmailModal';
 import { SupabaseModal } from './components/SupabaseModal';
-import { getAssetsHybrid } from './utils/supabaseStorage';
+import {
+  getAssetsHybrid,
+  saveAssetHybrid,
+  deleteAssetHybrid,
+  getTicketsHybrid,
+  saveTicketHybrid,
+  getBranchesHybrid,
+  saveBranchesHybrid,
+  getCategoriesHybrid,
+  saveCategoriesHybrid,
+  getRolesHybrid,
+  saveRolesHybrid,
+  getUsersHybrid,
+  saveUsersHybrid,
+  subscribeToSupabaseRealtime,
+} from './utils/supabaseStorage';
+import { logoutSupabaseSession } from './utils/supabaseAuth';
 import { DashboardOverview } from './components/DashboardOverview';
 import { AssetList } from './components/AssetList';
 import { TicketsList } from './components/TicketsList';
@@ -103,8 +113,39 @@ export default function App() {
     setIsUserManagementOpen(true);
   };
 
-  // Initialize data on mount
+  // Synchronize state from Supabase Cloud (Single Source of Truth)
+  const refreshAllDataFromCloud = async () => {
+    try {
+      const [
+        remoteBranches,
+        remoteCategories,
+        remoteRoles,
+        remoteUsers,
+        remoteAssets,
+        remoteTickets,
+      ] = await Promise.all([
+        getBranchesHybrid(),
+        getCategoriesHybrid(),
+        getRolesHybrid(),
+        getUsersHybrid(),
+        getAssetsHybrid(),
+        getTicketsHybrid(),
+      ]);
+
+      if (remoteBranches.length > 0) setBranches(remoteBranches);
+      if (remoteCategories.length > 0) setCategories(remoteCategories);
+      if (remoteRoles.length > 0) setRoles(remoteRoles);
+      if (remoteUsers.length > 0) setUsers(remoteUsers);
+      if (remoteAssets.length > 0) setAssets(remoteAssets);
+      if (remoteTickets.length > 0) setTickets(remoteTickets);
+    } catch (err) {
+      console.warn('Initial cloud sync notice:', err);
+    }
+  };
+
+  // Initialize data on mount & subscribe to Supabase Realtime
   useEffect(() => {
+    // 1. Initial immediate paint from local storage cache for instant UX
     const loadedUsers = getStoredUsers();
     const loadedBranches = getStoredBranches();
     const loadedCategories = getStoredCategories();
@@ -137,64 +178,101 @@ export default function App() {
       }
     }
 
-    // Attempt hybrid sync from Supabase if connected
-    getAssetsHybrid()
-      .then((hybridAssets) => {
-        if (hybridAssets && hybridAssets.length > 0) {
-          setAssets(hybridAssets);
-        }
-      })
-      .catch((e) => console.log('Running in offline/local storage mode', e));
+    // 2. Fetch latest data from Supabase Cloud
+    refreshAllDataFromCloud();
+
+    // 3. Connect Supabase Realtime channel for instant cross-device synchronization
+    const unsubscribe = subscribeToSupabaseRealtime(
+      (changedAsset, eventType) => {
+        setAssets((prev) => {
+          if (eventType === 'DELETE') {
+            return prev.filter((a) => a.id !== changedAsset.id);
+          }
+          const exists = prev.some((a) => a.id === changedAsset.id);
+          return exists
+            ? prev.map((a) => (a.id === changedAsset.id ? changedAsset : a))
+            : [changedAsset, ...prev];
+        });
+      },
+      (changedTicket, eventType) => {
+        setTickets((prev) => {
+          if (eventType === 'DELETE') {
+            return prev.filter((t) => t.id !== changedTicket.id);
+          }
+          const exists = prev.some((t) => t.id === changedTicket.id);
+          return exists
+            ? prev.map((t) => (t.id === changedTicket.id ? changedTicket : t))
+            : [changedTicket, ...prev];
+        });
+      },
+      (changedBranch) => {
+        setBranches((prev) => {
+          const exists = prev.some((b) => b.id === changedBranch.id);
+          return exists
+            ? prev.map((b) => (b.id === changedBranch.id ? changedBranch : b))
+            : [...prev, changedBranch];
+        });
+      },
+      (changedCategory) => {
+        setCategories((prev) => {
+          const exists = prev.some((c) => c.id === changedCategory.id);
+          return exists
+            ? prev.map((c) => (c.id === changedCategory.id ? changedCategory : c))
+            : [...prev, changedCategory];
+        });
+      }
+    );
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   const handleAuthenticated = (user: UserProfile) => {
     setCurrentUser(user);
     setIsAuthenticated(true);
     saveStoredAuthUser(user);
+    refreshAllDataFromCloud();
   };
 
-  const handleLogoutPin = () => {
+  const handleLogoutPin = async () => {
+    await logoutSupabaseSession();
     saveStoredAuthUser(null);
     setCurrentUser(null);
     setIsAuthenticated(false);
   };
 
-  const handleUpdateAsset = (updatedAsset: Asset) => {
-    const updatedList = assets.map((a) => (a.id === updatedAsset.id ? updatedAsset : a));
-    setAssets(updatedList);
-    saveStoredAssets(updatedList);
+  const handleUpdateAsset = async (updatedAsset: Asset) => {
+    setAssets((prev) => prev.map((a) => (a.id === updatedAsset.id ? updatedAsset : a)));
     setSelectedAssetForDetail(updatedAsset);
+    await saveAssetHybrid(updatedAsset);
   };
 
-  const handleDeleteAsset = (assetId: string) => {
-    const updatedList = assets.filter((a) => a.id !== assetId);
-    setAssets(updatedList);
-    saveStoredAssets(updatedList);
+  const handleDeleteAsset = async (assetId: string) => {
+    setAssets((prev) => prev.filter((a) => a.id !== assetId));
     setSelectedAssetForDetail(null);
+    await deleteAssetHybrid(assetId);
   };
 
-  const handleSaveNewAsset = (newAsset: Asset) => {
-    const updatedList = [newAsset, ...assets];
-    setAssets(updatedList);
-    saveStoredAssets(updatedList);
+  const handleSaveNewAsset = async (newAsset: Asset) => {
+    setAssets((prev) => [newAsset, ...prev]);
     setSelectedAssetForBarcode(newAsset);
+    await saveAssetHybrid(newAsset);
   };
 
-  const handleSubmitTicket = (newTicket: MaintenanceTicket) => {
-    const updatedTickets = [newTicket, ...tickets];
-    setTickets(updatedTickets);
-    saveStoredTickets(updatedTickets);
+  const handleSubmitTicket = async (newTicket: MaintenanceTicket) => {
+    setTickets((prev) => [newTicket, ...prev]);
+    await saveTicketHybrid(newTicket);
   };
 
-  const handleUpdateTicket = (updatedTicket: MaintenanceTicket) => {
-    const updatedList = tickets.map((t) => (t.id === updatedTicket.id ? updatedTicket : t));
-    setTickets(updatedList);
-    saveStoredTickets(updatedList);
+  const handleUpdateTicket = async (updatedTicket: MaintenanceTicket) => {
+    setTickets((prev) => prev.map((t) => (t.id === updatedTicket.id ? updatedTicket : t)));
+    await saveTicketHybrid(updatedTicket);
   };
 
-  const handleSaveUsers = (newUsers: UserProfile[]) => {
+  const handleSaveUsers = async (newUsers: UserProfile[]) => {
     setUsers(newUsers);
-    saveStoredUsers(newUsers);
+    await saveUsersHybrid(newUsers);
     // If current user is updated, keep in sync
     if (currentUser) {
       const found = newUsers.find((u) => u.id === currentUser.id);
@@ -205,19 +283,19 @@ export default function App() {
     }
   };
 
-  const handleSaveRoles = (newRoles: RoleDefinition[]) => {
+  const handleSaveRoles = async (newRoles: RoleDefinition[]) => {
     setRoles(newRoles);
-    saveStoredRoles(newRoles);
+    await saveRolesHybrid(newRoles);
   };
 
-  const handleSaveBranches = (newBranches: Branch[]) => {
+  const handleSaveBranches = async (newBranches: Branch[]) => {
     setBranches(newBranches);
-    saveStoredBranches(newBranches);
+    await saveBranchesHybrid(newBranches);
   };
 
-  const handleSaveCategories = (newCategories: CategoryDefinition[]) => {
+  const handleSaveCategories = async (newCategories: CategoryDefinition[]) => {
     setCategories(newCategories);
-    saveStoredCategories(newCategories);
+    await saveCategoriesHybrid(newCategories);
   };
 
   const handleExportExcel = () => {
@@ -252,7 +330,22 @@ export default function App() {
 
   // 1. PIN Lock Screen Authentication Gate (Requirement 1 & 3)
   if (!isAuthenticated || !currentUser) {
-    return <PinLockScreen users={users} onAuthenticated={handleAuthenticated} />;
+    return (
+      <>
+        <PinLockScreen
+          users={users}
+          onAuthenticated={handleAuthenticated}
+          onOpenSupabaseConfig={() => setIsSupabaseModalOpen(true)}
+        />
+        <SupabaseModal
+          isOpen={isSupabaseModalOpen}
+          onClose={() => setIsSupabaseModalOpen(false)}
+          onDataSynced={() => {
+            refreshAllDataFromCloud();
+          }}
+        />
+      </>
+    );
   }
 
   const selectedBranchForTag = selectedAssetForBarcode
@@ -474,9 +567,7 @@ export default function App() {
         isOpen={isSupabaseModalOpen}
         onClose={() => setIsSupabaseModalOpen(false)}
         onDataSynced={() => {
-          getAssetsHybrid().then((a) => {
-            if (a && a.length > 0) setAssets(a);
-          });
+          refreshAllDataFromCloud();
         }}
       />
 

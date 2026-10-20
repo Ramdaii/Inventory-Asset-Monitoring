@@ -34,12 +34,16 @@ interface SupabaseModalProps {
 }
 
 const SUPABASE_SCHEMA_SQL = `-- ========================================================
--- ROTARY AUTO - GA-OPS COMMANDER SUPABASE DATABASE SCHEMA
--- Skrip DDL Non-Destruktif (CREATE TABLE IF NOT EXISTS)
+-- ROTARY AUTO - GA-OPS COMMANDER SUPABASE DATABASE SCHEMA (12 TABEL GA_*)
+-- Skrip DDL Non-Destruktif & Keamanan Enterprise (PIN Auth, RLS & Realtime)
+-- Menggunakan tabel aktual: ga_pin_credentials & ga_sessions
 -- ========================================================
 
--- 1. Tabel Cabang (Branches)
-CREATE TABLE IF NOT EXISTS public.branches (
+-- Aktifkan ekstensi enkripsi pgcrypto untuk hashing bcrypt PIN
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- 1. Tabel Cabang (ga_branches)
+CREATE TABLE IF NOT EXISTS public.ga_branches (
     id TEXT PRIMARY KEY,
     code TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
@@ -47,12 +51,13 @@ CREATE TABLE IF NOT EXISTS public.branches (
     address TEXT,
     pic_name TEXT,
     pic_phone TEXT,
+    is_active BOOLEAN DEFAULT true NOT NULL,
     created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 2. Tabel Role & Perizinan (Roles)
-CREATE TABLE IF NOT EXISTS public.roles (
+-- 2. Tabel Role & Perizinan (ga_roles)
+CREATE TABLE IF NOT EXISTS public.ga_roles (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     label TEXT NOT NULL,
@@ -62,43 +67,81 @@ CREATE TABLE IF NOT EXISTS public.roles (
     created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 3. Tabel Profil Pengguna (Users)
-CREATE TABLE IF NOT EXISTS public.users (
+-- 3. Tabel Profil Pengguna Publik (ga_users)
+-- CATATAN KEAMANAN: PIN atau PIN Hash TIDAK PERNAH disimpan di tabel ini
+CREATE TABLE IF NOT EXISTS public.ga_users (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     email TEXT,
-    role_id TEXT REFERENCES public.roles(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    role_id TEXT NOT NULL REFERENCES public.ga_roles(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     role_label TEXT NOT NULL,
     department TEXT NOT NULL,
-    branch_id TEXT REFERENCES public.branches(id) ON UPDATE CASCADE ON DELETE RESTRICT,
-    pin TEXT NOT NULL,
+    branch_id TEXT NOT NULL REFERENCES public.ga_branches(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     avatar_url TEXT,
+    is_active BOOLEAN DEFAULT true NOT NULL,
     created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 4. Tabel Kategori Fasilitas (Categories)
-CREATE TABLE IF NOT EXISTS public.categories (
+-- 4. Tabel Kredensial PIN Internal (ga_pin_credentials)
+CREATE TABLE IF NOT EXISTS public.ga_pin_credentials (
+    user_id TEXT PRIMARY KEY REFERENCES public.ga_users(id) ON DELETE CASCADE,
+    pin_hash TEXT NOT NULL,
+    failed_attempts INTEGER DEFAULT 0 NOT NULL,
+    locked_until TIMESTAMPTZ,
+    last_login_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 5. Tabel Sesi Pengguna Aktif (ga_sessions)
+CREATE TABLE IF NOT EXISTS public.ga_sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id TEXT NOT NULL REFERENCES public.ga_users(id) ON DELETE CASCADE,
+    token TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    user_agent TEXT,
+    ip_address TEXT,
+    is_revoked BOOLEAN DEFAULT false NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ga_sessions_token ON public.ga_sessions(token);
+CREATE INDEX IF NOT EXISTS idx_ga_sessions_user ON public.ga_sessions(user_id);
+
+-- 6. Tabel Percobaan Login & Audit Rate Limiting (ga_login_attempts)
+CREATE TABLE IF NOT EXISTS public.ga_login_attempts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id TEXT NOT NULL,
+    attempt_time TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+    success BOOLEAN NOT NULL DEFAULT false,
+    ip_address TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_ga_login_attempts ON public.ga_login_attempts(user_id, attempt_time);
+
+-- 7. Tabel Kategori Fasilitas (ga_categories)
+CREATE TABLE IF NOT EXISTS public.ga_categories (
     id TEXT PRIMARY KEY,
-    code TEXT NOT NULL,
+    code TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     description TEXT,
     color TEXT,
     icon TEXT,
+    is_active BOOLEAN DEFAULT true NOT NULL,
     created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 5. Tabel Utama Aset & Inventaris (Assets)
-CREATE TABLE IF NOT EXISTS public.assets (
+-- 8. Tabel Utama Aset & Fasilitas (ga_assets)
+CREATE TABLE IF NOT EXISTS public.ga_assets (
     id TEXT PRIMARY KEY,
     code TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     category TEXT NOT NULL,
-    branch_id TEXT NOT NULL REFERENCES public.branches(id) ON UPDATE CASCADE ON DELETE RESTRICT,
-    branch_name TEXT NOT NULL,
+    branch_id TEXT NOT NULL REFERENCES public.ga_branches(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     location TEXT NOT NULL,
     brand_model TEXT,
     serial_number TEXT,
+    purchase_date DATE,
+    warranty_expiry DATE,
     status TEXT NOT NULL DEFAULT 'optimal',
     health_score INTEGER NOT NULL DEFAULT 100,
     last_maintenance_date DATE,
@@ -114,21 +157,25 @@ CREATE TABLE IF NOT EXISTS public.assets (
     notes TEXT,
     documents JSONB DEFAULT '[]'::jsonb,
     maintenance_history JSONB DEFAULT '[]'::jsonb,
+    is_deleted BOOLEAN DEFAULT false NOT NULL,
+    deleted_at TIMESTAMPTZ,
+    deleted_by TEXT,
     created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_assets_branch ON public.assets(branch_id);
-CREATE INDEX IF NOT EXISTS idx_assets_code ON public.assets(code);
-CREATE INDEX IF NOT EXISTS idx_assets_status ON public.assets(status);
+CREATE INDEX IF NOT EXISTS idx_ga_assets_branch ON public.ga_assets(branch_id);
+CREATE INDEX IF NOT EXISTS idx_ga_assets_code ON public.ga_assets(code);
+CREATE INDEX IF NOT EXISTS idx_ga_assets_status ON public.ga_assets(status);
+CREATE INDEX IF NOT EXISTS idx_ga_assets_is_deleted ON public.ga_assets(is_deleted);
 
--- 6. Tabel Tiket Perbaikan Fasilitas (Maintenance Tickets)
-CREATE TABLE IF NOT EXISTS public.maintenance_tickets (
+-- 9. Tabel Tiket Perbaikan Fasilitas (ga_maintenance_tickets)
+CREATE TABLE IF NOT EXISTS public.ga_maintenance_tickets (
     id TEXT PRIMARY KEY,
     ticket_number TEXT NOT NULL UNIQUE,
-    asset_id TEXT NOT NULL REFERENCES public.assets(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    asset_id TEXT NOT NULL REFERENCES public.ga_assets(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     asset_name TEXT NOT NULL,
-    branch_id TEXT NOT NULL REFERENCES public.branches(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    branch_id TEXT NOT NULL REFERENCES public.ga_branches(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     location TEXT NOT NULL,
     reported_by TEXT NOT NULL,
     reported_email TEXT,
@@ -138,38 +185,580 @@ CREATE TABLE IF NOT EXISTS public.maintenance_tickets (
     status TEXT NOT NULL DEFAULT 'open',
     assigned_technician TEXT,
     resolution_notes TEXT,
+    is_deleted BOOLEAN DEFAULT false NOT NULL,
     created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 7. Aktifkan Row Level Security (RLS)
-ALTER TABLE public.branches ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.roles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.assets ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.maintenance_tickets ENABLE ROW LEVEL SECURITY;
+CREATE INDEX IF NOT EXISTS idx_ga_tickets_branch ON public.ga_maintenance_tickets(branch_id);
+CREATE INDEX IF NOT EXISTS idx_ga_tickets_asset ON public.ga_maintenance_tickets(asset_id);
+CREATE INDEX IF NOT EXISTS idx_ga_tickets_status ON public.ga_maintenance_tickets(status);
 
--- Buat Kebijakan Akses (RLS) Aman
+-- 10. Tabel Log Notifikasi Email (ga_email_notification_logs)
+CREATE TABLE IF NOT EXISTS public.ga_email_notification_logs (
+    id TEXT PRIMARY KEY,
+    timestamp TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+    recipient TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    asset_code TEXT,
+    asset_name TEXT,
+    days_remaining INTEGER,
+    trigger_type TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'sent',
+    preview_body TEXT
+);
+
+-- 11. Tabel Pengaturan Notifikasi Email (ga_email_notification_settings)
+CREATE TABLE IF NOT EXISTS public.ga_email_notification_settings (
+    id TEXT PRIMARY KEY DEFAULT 'default_settings',
+    enabled BOOLEAN DEFAULT true,
+    primary_email TEXT NOT NULL,
+    additional_emails JSONB DEFAULT '[]'::jsonb,
+    alert_7_days BOOLEAN DEFAULT true,
+    alert_3_days BOOLEAN DEFAULT true,
+    alert_due_day BOOLEAN DEFAULT true,
+    alert_overdue BOOLEAN DEFAULT true,
+    auto_check_interval_minutes INTEGER DEFAULT 60,
+    last_checked_time TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 12. Tabel Riwayat Backup Cadangan (ga_system_backups)
+CREATE TABLE IF NOT EXISTS public.ga_system_backups (
+    id TEXT PRIMARY KEY,
+    timestamp TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+    asset_count INTEGER NOT NULL,
+    log_count INTEGER NOT NULL,
+    encrypted BOOLEAN DEFAULT true,
+    checksum TEXT NOT NULL,
+    size_kb NUMERIC(10,2) NOT NULL,
+    auto_scheduled BOOLEAN DEFAULT false
+);
+
+-- ========================================================
+-- PERMISSIONS & PRIVILEGES (MENGATASI ERROR 42501)
+-- ========================================================
+
+-- Berikan izin akses skema public ke role anon dan authenticated PostgREST
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+
+-- Berikan hak akses tabel operasional (akses aktual dikontrol ketat oleh RLS di bawah)
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE 
+    public.ga_branches, 
+    public.ga_roles, 
+    public.ga_users, 
+    public.ga_categories, 
+    public.ga_assets, 
+    public.ga_maintenance_tickets, 
+    public.ga_email_notification_logs, 
+    public.ga_email_notification_settings, 
+    public.ga_system_backups 
+TO anon, authenticated;
+
+-- ISOLASI KETAT TABEL KREDENSIAL & SESI:
+-- Tidak ada pengguna anon atau authenticated yang dapat SELECT/INSERT/UPDATE tabel ini secara langsung via REST API
+REVOKE ALL ON TABLE public.ga_pin_credentials FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON TABLE public.ga_sessions FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON TABLE public.ga_login_attempts FROM PUBLIC, anon, authenticated;
+
+-- ========================================================
+-- HELPER FUNCTIONS OTORISASI SERVER-SIDE
+-- ========================================================
+
+-- Helper: Ambil token sesi dari Header HTTP 'x-session-token'
+CREATE OR REPLACE FUNCTION public.ga_get_session_token()
+RETURNS TEXT
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_headers JSON;
+    v_token TEXT;
+BEGIN
+    BEGIN
+        v_headers := current_setting('request.headers', true)::json;
+        v_token := v_headers->>'x-session-token';
+    EXCEPTION WHEN OTHERS THEN
+        v_token := NULL;
+    END;
+    RETURN v_token;
+END;
+$$;
+
+-- Helper: Validasi sesi aktif dan kembalikan profil pengguna
+CREATE OR REPLACE FUNCTION public.ga_get_current_user_session()
+RETURNS TABLE (
+    user_id TEXT,
+    role_id TEXT,
+    role_name TEXT,
+    branch_id TEXT,
+    permissions JSONB
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_token TEXT;
+BEGIN
+    v_token := public.ga_get_session_token();
+    IF v_token IS NULL OR v_token = '' THEN
+        RETURN;
+    END IF;
+
+    RETURN QUERY
+    SELECT 
+        s.user_id,
+        u.role_id,
+        r.name AS role_name,
+        u.branch_id,
+        r.permissions
+    FROM public.ga_sessions s
+    JOIN public.ga_users u ON u.id = s.user_id
+    JOIN public.ga_roles r ON r.id = u.role_id
+    WHERE s.token = v_token
+      AND s.is_revoked = false
+      AND s.expires_at > now()
+      AND u.is_active = true;
+END;
+$$;
+
+-- Helper: Periksa izin role / permissions
+CREATE OR REPLACE FUNCTION public.ga_has_permission(p_permission TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_sess RECORD;
+BEGIN
+    SELECT * INTO v_sess FROM public.ga_get_current_user_session() LIMIT 1;
+    IF NOT FOUND THEN
+        RETURN false;
+    END IF;
+
+    -- Super Admin & GA Admin selalu memiliki akses penuh
+    IF v_sess.role_id = 'role-superadmin' OR v_sess.role_id = 'role-admin' OR v_sess.role_name = 'admin' OR v_sess.role_name = 'superadmin' THEN
+        RETURN true;
+    END IF;
+
+    IF v_sess.permissions ? p_permission OR v_sess.permissions ? 'all' THEN
+        RETURN true;
+    END IF;
+
+    RETURN false;
+END;
+$$;
+
+-- Helper: Periksa hak akses cabang
+CREATE OR REPLACE FUNCTION public.ga_can_access_branch(p_branch_id TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_sess RECORD;
+BEGIN
+    SELECT * INTO v_sess FROM public.ga_get_current_user_session() LIMIT 1;
+    IF NOT FOUND THEN
+        RETURN false;
+    END IF;
+
+    -- Admin dapat mengakses semua cabang
+    IF v_sess.role_id = 'role-superadmin' OR v_sess.role_id = 'role-admin' OR v_sess.role_name = 'admin' OR v_sess.role_name = 'superadmin' THEN
+        RETURN true;
+    END IF;
+
+    RETURN (v_sess.branch_id = p_branch_id OR p_branch_id IS NULL OR v_sess.branch_id = 'all');
+END;
+$$;
+
+-- ========================================================
+-- RPC FUNCTIONS (PIN LOGIN & SESSION MANAGEMENT)
+-- ========================================================
+
+-- RPC: Verifikasi PIN & Buat Sesi Token (SECURITY DEFINER)
+CREATE OR REPLACE FUNCTION public.rpc_login_pin(
+    p_user_id TEXT,
+    p_pin TEXT,
+    p_user_agent TEXT DEFAULT NULL,
+    p_ip_address TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_auth RECORD;
+    v_user RECORD;
+    v_new_token TEXT;
+    v_expires_at TIMESTAMPTZ;
+    v_current_fails INTEGER;
+BEGIN
+    IF p_user_id IS NULL OR p_pin IS NULL OR length(trim(p_pin)) != 6 THEN
+        RETURN jsonb_build_object('success', false, 'message', 'PIN harus berupa 6 digit angka.');
+    END IF;
+
+    -- Row Lock Atomik mencegah Race Condition Brute Force
+    SELECT * INTO v_auth 
+    FROM public.ga_pin_credentials 
+    WHERE user_id = p_user_id 
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+        PERFORM crypt(p_pin, gen_salt('bf', 10)); -- Timing attack mitigation
+        RETURN jsonb_build_object('success', false, 'code', 'USER_NOT_FOUND', 'message', 'Pengguna atau kredensial PIN belum terdaftar di database.');
+    END IF;
+
+    -- Cek lockout akun
+    IF v_auth.locked_until IS NOT NULL AND v_auth.locked_until > now() THEN
+        RETURN jsonb_build_object(
+            'success', false, 
+            'code', 'ACCOUNT_LOCKED',
+            'message', 'Akun terkunci sementara karena salah PIN 5 kali. Coba lagi dalam ' || 
+                       CEIL(EXTRACT(EPOCH FROM (v_auth.locked_until - now())) / 60) || ' menit.'
+        );
+    END IF;
+
+    -- Verifikasi Bcrypt hash
+    IF v_auth.pin_hash = crypt(p_pin, v_auth.pin_hash) THEN
+        UPDATE public.ga_pin_credentials 
+        SET failed_attempts = 0, 
+            locked_until = NULL, 
+            last_login_at = now(),
+            updated_at = now()
+        WHERE user_id = p_user_id;
+
+        INSERT INTO public.ga_login_attempts (user_id, success, ip_address)
+        VALUES (p_user_id, true, p_ip_address);
+
+        SELECT * INTO v_user FROM public.ga_users WHERE id = p_user_id AND is_active = true;
+
+        v_new_token := encode(gen_random_bytes(32), 'hex');
+        v_expires_at := now() + interval '24 hours';
+
+        INSERT INTO public.ga_sessions (user_id, token, expires_at, user_agent, ip_address)
+        VALUES (p_user_id, v_new_token, v_expires_at, p_user_agent, p_ip_address);
+
+        RETURN jsonb_build_object(
+            'success', true,
+            'session_token', v_new_token,
+            'expires_at', v_expires_at,
+            'user', jsonb_build_object(
+                'id', v_user.id,
+                'name', v_user.name,
+                'email', v_user.email,
+                'roleId', v_user.role_id,
+                'roleLabel', v_user.role_label,
+                'department', v_user.department,
+                'branchId', v_user.branch_id,
+                'avatarUrl', v_user.avatar_url
+            )
+        );
+    ELSE
+        v_current_fails := v_auth.failed_attempts + 1;
+
+        INSERT INTO public.ga_login_attempts (user_id, success, ip_address)
+        VALUES (p_user_id, false, p_ip_address);
+        
+        IF v_current_fails >= 5 THEN
+            UPDATE public.ga_pin_credentials 
+            SET failed_attempts = v_current_fails,
+                locked_until = now() + interval '15 minutes',
+                updated_at = now()
+            WHERE user_id = p_user_id;
+
+            RETURN jsonb_build_object(
+                'success', false, 
+                'code', 'ACCOUNT_LOCKED',
+                'message', 'PIN salah 5 kali berturut-turut. Akun dikunci selama 15 menit demi keamanan.'
+            );
+        ELSE
+            UPDATE public.ga_pin_credentials 
+            SET failed_attempts = v_current_fails,
+                updated_at = now()
+            WHERE user_id = p_user_id;
+
+            RETURN jsonb_build_object(
+                'success', false, 
+                'code', 'INVALID_PIN',
+                'message', 'PIN salah. Sisa percobaan sebelum akun dikunci: ' || (5 - v_current_fails)
+            );
+        END IF;
+    END IF;
+END;
+$$;
+
+-- RPC: Inisialisasi / Update PIN Pengguna (SECURITY DEFINER)
+CREATE OR REPLACE FUNCTION public.rpc_set_user_pin(
+    p_user_id TEXT,
+    p_pin TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+    IF p_user_id IS NULL OR p_pin IS NULL OR length(trim(p_pin)) != 6 THEN
+        RETURN jsonb_build_object('success', false, 'message', 'PIN harus 6 digit angka.');
+    END IF;
+
+    INSERT INTO public.ga_pin_credentials (user_id, pin_hash, failed_attempts, updated_at)
+    VALUES (p_user_id, crypt(p_pin, gen_salt('bf', 10)), 0, now())
+    ON CONFLICT (user_id) 
+    DO UPDATE SET 
+        pin_hash = crypt(p_pin, gen_salt('bf', 10)),
+        failed_attempts = 0,
+        locked_until = NULL,
+        updated_at = now();
+
+    RETURN jsonb_build_object('success', true, 'message', 'Kredensial PIN pengguna berhasil disimpan secara aman.');
+END;
+$$;
+
+-- RPC: Validasi Sesi Token
+CREATE OR REPLACE FUNCTION public.rpc_validate_session(p_token TEXT)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_sess RECORD;
+    v_user RECORD;
+BEGIN
+    SELECT * INTO v_sess 
+    FROM public.ga_sessions 
+    WHERE token = p_token AND is_revoked = false AND expires_at > now();
+
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('valid', false, 'message', 'Sesi tidak valid atau telah kedaluwarsa.');
+    END IF;
+
+    SELECT * INTO v_user FROM public.ga_users WHERE id = v_sess.user_id AND is_active = true;
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('valid', false, 'message', 'Pengguna tidak ditemukan atau nonaktif.');
+    END IF;
+
+    RETURN jsonb_build_object(
+        'valid', true,
+        'user', jsonb_build_object(
+            'id', v_user.id,
+            'name', v_user.name,
+            'email', v_user.email,
+            'roleId', v_user.role_id,
+            'roleLabel', v_user.role_label,
+            'department', v_user.department,
+            'branchId', v_user.branch_id,
+            'avatarUrl', v_user.avatar_url
+        )
+    );
+END;
+$$;
+
+-- RPC: Logout & Revoke Sesi Token
+CREATE OR REPLACE FUNCTION public.rpc_logout_session(p_token TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+    UPDATE public.ga_sessions 
+    SET is_revoked = true 
+    WHERE token = p_token;
+    RETURN true;
+END;
+$$;
+
+-- Berikan izin eksekusi RPC ke anon dan authenticated
+GRANT EXECUTE ON FUNCTION public.rpc_login_pin(TEXT, TEXT, TEXT, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.rpc_logout_session(TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.rpc_set_user_pin(TEXT, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.rpc_validate_session(TEXT) TO anon, authenticated;
+
+-- ========================================================
+-- ROW LEVEL SECURITY (RLS) POLICIES TINGKAT TINGGI
+-- ========================================================
+
+ALTER TABLE public.ga_branches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ga_roles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ga_users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ga_pin_credentials ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ga_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ga_login_attempts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ga_categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ga_assets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ga_maintenance_tickets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ga_email_notification_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ga_email_notification_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ga_system_backups ENABLE ROW LEVEL SECURITY;
+
 DO $$ 
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Allow read access') THEN
-        CREATE POLICY "Allow read access" ON public.branches FOR SELECT USING (true);
-        CREATE POLICY "Allow read access" ON public.roles FOR SELECT USING (true);
-        CREATE POLICY "Allow read access" ON public.users FOR SELECT USING (true);
-        CREATE POLICY "Allow read access" ON public.categories FOR SELECT USING (true);
-        CREATE POLICY "Allow read access" ON public.assets FOR SELECT USING (true);
-        CREATE POLICY "Allow read access" ON public.maintenance_tickets FOR SELECT USING (true);
+    -- 1. ga_branches: SELECT terbuka (untuk pemilihan cabang & login), MUTASI dibatasi izin role
+    DROP POLICY IF EXISTS "ga_branches_select" ON public.ga_branches;
+    CREATE POLICY "ga_branches_select" ON public.ga_branches FOR SELECT USING (true);
+
+    DROP POLICY IF EXISTS "ga_branches_write" ON public.ga_branches;
+    CREATE POLICY "ga_branches_write" ON public.ga_branches FOR ALL 
+    USING ((SELECT count(*) FROM public.ga_users) = 0 OR public.ga_has_permission('manage_branches'))
+    WITH CHECK ((SELECT count(*) FROM public.ga_users) = 0 OR public.ga_has_permission('manage_branches'));
+
+    -- 2. ga_roles: SELECT terbuka (metadata role), MUTASI dibatasi admin
+    DROP POLICY IF EXISTS "ga_roles_select" ON public.ga_roles;
+    CREATE POLICY "ga_roles_select" ON public.ga_roles FOR SELECT USING (true);
+
+    DROP POLICY IF EXISTS "ga_roles_write" ON public.ga_roles;
+    CREATE POLICY "ga_roles_write" ON public.ga_roles FOR ALL 
+    USING ((SELECT count(*) FROM public.ga_users) = 0 OR public.ga_has_permission('manage_roles'))
+    WITH CHECK ((SELECT count(*) FROM public.ga_users) = 0 OR public.ga_has_permission('manage_roles'));
+
+    -- 3. ga_users: SELECT terbuka untuk profil publik (PIN/hash terisolasi di ga_pin_credentials)
+    DROP POLICY IF EXISTS "ga_users_select" ON public.ga_users;
+    CREATE POLICY "ga_users_select" ON public.ga_users FOR SELECT USING (true);
+
+    DROP POLICY IF EXISTS "ga_users_write" ON public.ga_users;
+    CREATE POLICY "ga_users_write" ON public.ga_users FOR ALL 
+    USING ((SELECT count(*) FROM public.ga_users) = 0 OR public.ga_has_permission('manage_users'))
+    WITH CHECK ((SELECT count(*) FROM public.ga_users) = 0 OR public.ga_has_permission('manage_users'));
+
+    -- 4. ga_categories: SELECT terbuka, MUTASI dibatasi izin
+    DROP POLICY IF EXISTS "ga_categories_select" ON public.ga_categories;
+    CREATE POLICY "ga_categories_select" ON public.ga_categories FOR SELECT USING (true);
+
+    DROP POLICY IF EXISTS "ga_categories_write" ON public.ga_categories;
+    CREATE POLICY "ga_categories_write" ON public.ga_categories FOR ALL 
+    USING ((SELECT count(*) FROM public.ga_users) = 0 OR public.ga_has_permission('manage_categories'))
+    WITH CHECK ((SELECT count(*) FROM public.ga_users) = 0 OR public.ga_has_permission('manage_categories'));
+
+    -- 5. ga_assets: Hanya aset aktif (is_deleted = false), mutasi dibatasi izin & cabang
+    DROP POLICY IF EXISTS "ga_assets_select" ON public.ga_assets;
+    CREATE POLICY "ga_assets_select" ON public.ga_assets FOR SELECT 
+    USING (
+        is_deleted = false AND (
+            (SELECT count(*) FROM public.ga_users) = 0 OR
+            public.ga_can_access_branch(branch_id) OR
+            public.ga_get_session_token() IS NULL
+        )
+    );
+
+    DROP POLICY IF EXISTS "ga_assets_insert" ON public.ga_assets;
+    CREATE POLICY "ga_assets_insert" ON public.ga_assets FOR INSERT 
+    WITH CHECK (
+        (SELECT count(*) FROM public.ga_users) = 0 OR (
+            (public.ga_has_permission('add_assets') OR public.ga_has_permission('manage_assets'))
+            AND public.ga_can_access_branch(branch_id)
+        )
+    );
+
+    DROP POLICY IF EXISTS "ga_assets_update" ON public.ga_assets;
+    CREATE POLICY "ga_assets_update" ON public.ga_assets FOR UPDATE 
+    USING (
+        (SELECT count(*) FROM public.ga_users) = 0 OR (
+            (public.ga_has_permission('edit_assets') OR public.ga_has_permission('manage_assets'))
+            AND public.ga_can_access_branch(branch_id)
+        )
+    )
+    WITH CHECK (
+        (SELECT count(*) FROM public.ga_users) = 0 OR (
+            (public.ga_has_permission('edit_assets') OR public.ga_has_permission('manage_assets'))
+            AND public.ga_can_access_branch(branch_id)
+        )
+    );
+
+    DROP POLICY IF EXISTS "ga_assets_delete" ON public.ga_assets;
+    CREATE POLICY "ga_assets_delete" ON public.ga_assets FOR DELETE 
+    USING (
+        (SELECT count(*) FROM public.ga_users) = 0 OR (
+            public.ga_has_permission('delete_assets')
+            AND public.ga_can_access_branch(branch_id)
+        )
+    );
+
+    -- 6. ga_maintenance_tickets:
+    DROP POLICY IF EXISTS "ga_tickets_select" ON public.ga_maintenance_tickets;
+    CREATE POLICY "ga_tickets_select" ON public.ga_maintenance_tickets FOR SELECT 
+    USING (
+        is_deleted = false AND (
+            (SELECT count(*) FROM public.ga_users) = 0 OR
+            public.ga_can_access_branch(branch_id) OR
+            public.ga_get_session_token() IS NULL
+        )
+    );
+
+    DROP POLICY IF EXISTS "ga_tickets_insert" ON public.ga_maintenance_tickets;
+    CREATE POLICY "ga_tickets_insert" ON public.ga_maintenance_tickets FOR INSERT 
+    WITH CHECK (
+        (SELECT count(*) FROM public.ga_users) = 0 OR
+        public.ga_can_access_branch(branch_id)
+    );
+
+    DROP POLICY IF EXISTS "ga_tickets_update" ON public.ga_maintenance_tickets;
+    CREATE POLICY "ga_tickets_update" ON public.ga_maintenance_tickets FOR UPDATE 
+    USING (
+        (SELECT count(*) FROM public.ga_users) = 0 OR
+        public.ga_can_access_branch(branch_id)
+    )
+    WITH CHECK (
+        (SELECT count(*) FROM public.ga_users) = 0 OR
+        public.ga_can_access_branch(branch_id)
+    );
+
+    DROP POLICY IF EXISTS "ga_tickets_delete" ON public.ga_maintenance_tickets;
+    CREATE POLICY "ga_tickets_delete" ON public.ga_maintenance_tickets FOR DELETE 
+    USING (
+        (SELECT count(*) FROM public.ga_users) = 0 OR (
+            public.ga_has_permission('delete_tickets')
+            AND public.ga_can_access_branch(branch_id)
+        )
+    );
+
+    -- 7. ga_email_notification_settings
+    DROP POLICY IF EXISTS "ga_email_settings_select" ON public.ga_email_notification_settings;
+    CREATE POLICY "ga_email_settings_select" ON public.ga_email_notification_settings FOR SELECT USING (true);
+
+    DROP POLICY IF EXISTS "ga_email_settings_write" ON public.ga_email_notification_settings;
+    CREATE POLICY "ga_email_settings_write" ON public.ga_email_notification_settings FOR ALL 
+    USING ((SELECT count(*) FROM public.ga_users) = 0 OR public.ga_has_permission('manage_settings'))
+    WITH CHECK ((SELECT count(*) FROM public.ga_users) = 0 OR public.ga_has_permission('manage_settings'));
+
+    -- 8. ga_email_notification_logs
+    DROP POLICY IF EXISTS "ga_email_logs_select" ON public.ga_email_notification_logs;
+    CREATE POLICY "ga_email_logs_select" ON public.ga_email_notification_logs FOR SELECT USING (true);
+
+    DROP POLICY IF EXISTS "ga_email_logs_insert" ON public.ga_email_notification_logs;
+    CREATE POLICY "ga_email_logs_insert" ON public.ga_email_notification_logs FOR INSERT WITH CHECK (true);
+
+    -- 9. ga_system_backups
+    DROP POLICY IF EXISTS "ga_backups_select" ON public.ga_system_backups;
+    CREATE POLICY "ga_backups_select" ON public.ga_system_backups FOR SELECT USING (true);
+
+    DROP POLICY IF EXISTS "ga_backups_insert" ON public.ga_system_backups;
+    CREATE POLICY "ga_backups_insert" ON public.ga_system_backups FOR INSERT WITH CHECK (true);
+END $$;
+
+-- 12. Aktifkan Supabase Realtime pada 4 tabel operasional utama
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_publication_tables 
+        WHERE pubname = 'supabase_realtime' AND tablename = 'ga_assets'
+    ) THEN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.ga_assets, public.ga_maintenance_tickets, public.ga_branches, public.ga_categories;
     END IF;
-    
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Allow mutate for authenticated client') THEN
-        CREATE POLICY "Allow mutate for authenticated client" ON public.branches FOR ALL USING (true) WITH CHECK (true);
-        CREATE POLICY "Allow mutate for authenticated client" ON public.roles FOR ALL USING (true) WITH CHECK (true);
-        CREATE POLICY "Allow mutate for authenticated client" ON public.users FOR ALL USING (true) WITH CHECK (true);
-        CREATE POLICY "Allow mutate for authenticated client" ON public.categories FOR ALL USING (true) WITH CHECK (true);
-        CREATE POLICY "Allow mutate for authenticated client" ON public.assets FOR ALL USING (true) WITH CHECK (true);
-        CREATE POLICY "Allow mutate for authenticated client" ON public.maintenance_tickets FOR ALL USING (true) WITH CHECK (true);
-    END IF;
+EXCEPTION WHEN OTHERS THEN
+    -- Fallback non-blocking jika publikasi belum ada
+    NULL;
 END $$;
 `;
 
@@ -524,13 +1113,23 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
 
           {activeTab === 'sql' && (
             <div className="space-y-3">
+              <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 space-y-1">
+                <div className="font-bold flex items-center gap-1.5 text-blue-950">
+                  <Info className="w-4 h-4 text-blue-600 shrink-0" />
+                  <span>Solusi Error 42501 & Keamanan Single Source of Truth</span>
+                </div>
+                <p>
+                  Skrip di bawah ini dirancang khusus untuk <strong>12 tabel dengan prefix ga_*</strong> (termasuk <code>ga_pin_credentials</code> &amp; <code>ga_sessions</code>). Skrip ini memberikan izin <code>GRANT</code> yang diperlukan kepada PostgREST, memasang fungsi <strong>RPC PIN berenkripsi bcrypt</strong>, menerapkan <strong>Row Level Security (RLS)</strong> berbasis sesi, serta mengaktifkan <strong>Realtime</strong>.
+                </p>
+              </div>
+
               <div className="flex items-center justify-between">
                 <div>
                   <h4 className="font-bold text-slate-900 text-sm">
-                    Skrip DDL Database Supabase (PostgreSQL)
+                    Skrip DDL &amp; Keamanan Database Supabase (PostgreSQL)
                   </h4>
                   <p className="text-xs text-slate-500">
-                    Jalankan skrip ini di <strong>SQL Editor Supabase Dashboard</strong> untuk membuat tabel jika belum ada.
+                    Salin dan jalankan skrip ini sekali saja di <strong>SQL Editor pada Supabase Dashboard</strong> Anda.
                   </p>
                 </div>
 

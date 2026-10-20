@@ -20,8 +20,9 @@ import {
   INITIAL_ROLES,
   INITIAL_TICKETS,
   INITIAL_USERS,
+} from '../data/initialAssets';
 import { computeChecksum, encryptData, decryptData } from './crypto';
-import { formatJakartaFullDateTime, getJakartaDateString } from './dateTime';
+import { formatJakartaRealtime } from './time';
 
 const STORAGE_KEY_ASSETS = 'ga_ops_assets_v3';
 const STORAGE_KEY_TICKETS = 'ga_ops_tickets_v3';
@@ -368,7 +369,7 @@ export async function createEncryptedBackupPackage(passphrase: string = 'GA_ENTE
   const payload = JSON.stringify({
     version: '3.0.0',
     timezone: 'Asia/Jakarta (WIB - UTC+7)',
-    exportDateWib: formatJakartaFullDateTime(),
+    exportDateWib: formatJakartaRealtime(),
     exportDate: new Date().toISOString(),
     system: 'GA-Ops Facility & Inventory Commander (Multi-Branch & RBAC)',
     data: {
@@ -385,7 +386,7 @@ export async function createEncryptedBackupPackage(passphrase: string = 'GA_ENTE
   const checksum = await computeChecksum(payload);
   const encryptedString = await encryptData(payload, passphrase);
   const sizeKb = Math.round((encryptedString.length / 1024) * 10) / 10;
-  const dateStr = getJakartaDateString().replace(/-/g, '');
+  const dateStr = formatJakartaRealtime().split(' ')[0].replace(/-/g, '');
   const fileName = `ga_ops_backup_${dateStr}_WIB.enc.json`;
 
   return {
